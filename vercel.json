@@ -1,10 +1,12 @@
 {
   "version": 2,
-  "builds": [{ "src": "api/**/*.js", "use": "@vercel/node" }],
+  "builds": [
+    { "src": "api/[...route].js", "use": "@vercel/node" },
+    { "src": "api/mcp.js", "use": "@vercel/node" }
+  ],
   "routes": [
-    { "src": "/api/reservations/scan", "dest": "/api/reservations/index.js" },
-    { "src": "/api/reservations/?(\\?.*)?", "dest": "/api/reservations/index.js" },
-    { "src": "/api/(.*)", "dest": "/api/$1" },
+    { "src": "/api/mcp", "dest": "/api/mcp.js" },
+    { "src": "/api/(.*)", "dest": "/api/[...route].js" },
     { "src": "/(.*)", "dest": "/public/$1" }
   ],
   "crons": [{ "path": "/api/scan-all", "schedule": "0 0 * * *" }]
