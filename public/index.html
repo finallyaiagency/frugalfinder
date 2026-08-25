@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FrugalFinder — best value deal hunter</title>
+<style>
+  :root { --bg:#0f1115; --card:#171a21; --line:#262b36; --txt:#e7ebf3; --dim:#9aa4b5; --acc:#4ade80; --warn:#fbbf24; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--txt); font:15px/1.55 -apple-system,'Segoe UI',Roboto,sans-serif; padding:24px 16px 60px; }
+  .wrap { max-width:760px; margin:0 auto; }
+  h1 { font-size:1.6rem; letter-spacing:-.02em; } h1 span { color:var(--acc); }
+  .tag { color:var(--dim); margin:6px 0 22px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px; margin-bottom:16px; }
+  label { display:block; font-size:.8rem; color:var(--dim); text-transform:uppercase; letter-spacing:.06em; margin:10px 0 4px; }
+  textarea,input,select { width:100%; background:#0d0f14; color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font:inherit; }
+  textarea { min-height:64px; resize:vertical; }
+  button { background:var(--acc); color:#052e13; font-weight:700; border:0; border-radius:8px; padding:11px 20px; cursor:pointer; margin-top:14px; width:100%; font-size:1rem; }
+  button:disabled { opacity:.5; cursor:wait; }
+  .result { white-space:pre-wrap; font-size:.92rem; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:99px; font-size:.72rem; background:#12351f; color:var(--acc); margin-right:6px;}
+  .muted { color:var(--dim); font-size:.85rem; }
+  code { background:#0d0f14; padding:2px 6px; border-radius:4px; font-size:.85em; }
+  details { margin-top:10px; } summary { cursor:pointer; color:var(--acc); }
+  a { color:var(--acc); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🍀 Frugal<span>Finder</span></h1>
+  <p class="tag">Not the cheapest. Not the fanciest. The <b>best value</b>. An agent watches the market for what you actually want.</p>
+
+  <div class="card">
+    <label>What do you want?</label>
+    <textarea id="item" placeholder='e.g. "10ft fishing kayak" or paste a listing URL'></textarea>
+
+    <label>What will you use it for?</label>
+    <input id="use_case" placeholder="flatwater fishing on lakes, solo, easy to car-top">
+
+    <label>Budget constraints</label>
+    <input id="budget" placeholder="under $400, ideally $250-350">
+
+    <label>Flexibility (brand / quality / age / condition)</label>
+    <input id="flexibility" placeholder="any brand, used OK, prefer newer than 2018, no water damage">
+
+    <label>Scan cadence</label>
+    <select id="cadence">
+      <option value="daily">Daily — free</option>
+      <option value="weekly">Weekly — free</option>
+      <option value="hourly">Hourly — power tier ($0.01/scan)</option>
+    </select>
+
+    <button id="go">Analyze + start monitoring</button>
+    <div id="out"></div>
+  </div>
+
+  <div class="card muted">
+    <b>Share from anywhere:</b><br>
+    • Bookmarklet: drag <a href="#" onclick="return false" title="see README">→ README has it</a> to your bookmarks bar — click on any listing page to send it here.<br>
+    • Telegram: message your bot with <code>wishlist: &lt;item&gt;</code> lines.<br>
+    • API/MCP: POST to <code>/api/wishlists</code> or connect an MCP client to <code>/api/mcp</code>.
+  </div>
+
+  <div class="card">
+    <b>Your wishlists</b>
+    <div id="list" class="muted" style="margin-top:8px;">loading…</div>
+  </div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+async function loadList() {
+  try {
+    const r = await fetch('/api/wishlists');
+    const d = await r.json();
+    if (!d.wishlists?.length) { $('list').innerHTML = 'No wishlists yet — add one above.'; return; }
+    $('list').innerHTML = d.wishlists.map(w =>
+      `<div style="margin:8px 0;"><a href="/?id=${w.id}"><code>${w.id.slice(0,8)}</code></a> <b>${esc(w.item)}</b>
+       <span class="badge">${w.cadence}</span>${w.channel ? `<span class="badge">${w.channel}</span>`:''}
+       <span class="muted">${(w.scans||[]).length} scans</span></div>`).join('');
+  } catch(e) { $('list').textContent = 'Failed to load list.'; }
+}
+function esc(s){ return String(s??'').replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+$('go').onclick = async () => {
+  $('go').disabled = true; $('out').innerHTML = '<span class="muted">FrugalBot is thinking… this can take up to ~90s for deep reasoning models.</span>';
+  try {
+    const r = await fetch('/api/wishlists', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        item:$('item').value, use_case:$('use_case').value, budget:$('budget').value,
+        flexibility:$('flexibility').value, cadence:$('cadence').value,
+        source_url:(new URLSearchParams(location.search)).get('share') || ''
+      })
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.error || r.status);
+    location.href = '/?id=' + d.id;
+  } catch(e) {
+    $('out').innerHTML = `<span style="color:var(--warn)">Error: ${esc(e.message)}</span>`;
+    $('go').disabled = false;
+  }
+};
+// View single wishlist when ?id= is present
+(async () => {
+  const id = new URLSearchParams(location.search).get('id');
+  if (!id) { loadList(); return; }
+  document.querySelector('.card').style.display = 'none';
+  try {
+    const r = await fetch('/api/wishlists?id='+id); const wl = await r.json();
+    if (wl.error) { $('list').textContent = 'Wishlist not found.'; return; }
+    let html = `<h2>${esc(wl.item)}</h2><p class="muted">${wl.cadence} scans · created ${new Date(wl.created_at).toLocaleString()} · channel ${wl.channel||'web'}</p>`;
+    if (wl.analysis) {
+      const a = wl.analysis;
+      if (a.recommendation?.target) html += `<div class="card"><b>🎯 Target:</b> ${esc(a.recommendation.target)} <span class="badge">${esc(a.recommendation.condition||'')}</span>
+        ${a.recommendation.good_deal_range?`<br><b>💰 Good deal:</b> ${esc(a.recommendation.good_deal_range)}`:''}
+        ${a.recommendation.where_to_look?`<br><b>📍 Where:</b> ${esc(a.recommendation.where_to_look.join(', '))}`:''}</div>`;
+      if (Array.isArray(a.alternatives)) html += `<div class="card"><b>🔀 Alternatives:</b><ul>${a.alternatives.map(x=>`<li>${esc(x.item)} — ${esc(x.why||'')} <i>${esc(x.est_price_range||'')}</i></li>`).join('')}</ul></div>`;
+      if (a.joy_analysis) html += `<div class="card"><b>⚖️ Joy vs cost:</b> ${esc(a.joy_analysis)}</div>`;
+      if (Array.isArray(a.needs)) html += `<div class="card"><b>✅ Needs parsed:</b> ${a.needs.map(esc).join('; ')}</div>`;
+      if (Array.isArray(a.search_queries)) html += `<details><summary>Search queries the monitor uses</summary><ul>${a.search_queries.map(q=>`<li><code>${esc(q)}</code></li>`).join('')}</ul></details>`;
+      if (a.notes) html += `<p class="muted">💡 ${esc(a.notes)}</p>`;
+      if (wl.model_used) html += `<p class="muted">analyzed by ${esc(wl.model_used)}</p>`;
+    } else if (wl.scan_error) {
+      html += `<div class="card" style="color:var(--warn)">First analysis failed (${esc(wl.scan_error)}). It will retry at next scheduled scan, or hit "scan now".</div>`;
+    } else {
+      html += '<div class="card muted">Analysis pending… refresh in a moment.</div>';
+    }
+    html += `<div class="card"><button onclick="scanNow('${id}')">Scan now</button></div>`;
+    $('wrap') && 0;
+    document.querySelector('.wrap').innerHTML = html;
+  } catch(e) { console.error(e); }
+})();
+async function scanNow(id){
+  await fetch('/api/scan?id='+id, {method:'POST'});
+  location.reload();
+}
+</script>
+</body>
+</html>
