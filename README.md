@@ -78,11 +78,12 @@ Verified live run: mid_web (Sonar) scored 9 vs pareto (routed DeepSeek v4 flash)
 
 ## Sharing paths
 
-### Bookmarklet
-Create a bookmark with URL:
+### Add to Wishlist (bookmarklet)
+Create a browser bookmark named **Add to Wishlist** with this URL:
 ```javascript
-javascript:(function(){var u=location.href;var t=document.title;prompt('Send to FrugalFinder? Add budget/use hints:',t+'%5Cn'+u)&&fetch('https://frugalfinder.vercel.app/api/wishlists',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({item:t,source_url:u,budget:'see notes',use_case:'shared from '+u,cadence:'daily'})}).then(r=>r.json()).then(d=>alert('Added! id='+d.id))})()
+javascript:(function(){var u=location.href;var t=document.title;prompt('Send to FrugalFinder? Add budget/use hints:',t+'\n'+u)&&fetch('https://frugalfinder.vercel.app/api/wishlists',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({item:t,source_url:u,budget:'see notes',use_case:'shared from '+u,cadence:'daily'})}).then(r=>r.json()).then(d=>alert('Added! id='+d.id))})()
 ```
+Click it on any product page to submit that listing as a wishlist entry.
 
 ### Email (MVP note)
 Not yet wired — MVP uses web UI + Telegram + bookmarklet. Email ingest is a natural v2 addition via an inbound-email webhook (e.g. Resend/Postmark → `/api/wishlists`).
