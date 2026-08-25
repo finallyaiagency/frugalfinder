@@ -39,11 +39,19 @@ export function buildUserPrompt(wl) {
 }
 
 function extractJson(text) {
-  // Models sometimes wrap JSON in prose or fences; find the outermost braces.
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  if (start === -1 || end === -1) throw new Error('No JSON in model response');
-  return JSON.parse(text.slice(start, end + 1));
+  // Strip reasoning-model <think>…</think> blocks BEFORE brace-scanning —
+  // otherwise the first '{' found is inside the thinking trace, not the answer.
+  let t = String(text ?? '').replace(/<think>[\s\S]*?<\/think>/gi, '');
+  // Unclosed think tag (truncated generation): drop everything from '<think>' on.
+  const open = t.toLowerCase().indexOf('<think>');
+  if (open !== -1) t = t.slice(0, open);
+  const s = t.indexOf('{'), e = t.lastIndexOf('}');
+  if (s === -1 || e === -1 || e <= s) throw new Error('no JSON');
+  return JSON.parse(t.slice(s, e + 1));
+}
+
+export function stripThink(text) {
+  return String(text ?? '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
 }
 
 export async function analyzeWishlist(wl) {

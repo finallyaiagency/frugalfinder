@@ -84,9 +84,14 @@ async function callModel(slug, userPrompt, { webPlugin = false, maxTokens = 2500
 }
 
 function extractJson(text) {
-  const s = text.indexOf('{'), e = text.lastIndexOf('}');
-  if (s === -1 || e === -1) throw new Error('no JSON');
-  return JSON.parse(text.slice(s, e + 1));
+  // Strip reasoning-model <think>…</think> blocks BEFORE brace-scanning —
+  // otherwise the first '{' found is inside the thinking trace, not the answer.
+  let t = String(text ?? '').replace(/<think>[\s\S]*?<\/think>/gi, '');
+  const open = t.toLowerCase().indexOf('<think>');
+  if (open !== -1) t = t.slice(0, open);
+  const s = t.indexOf('{'), e = t.lastIndexOf('}');
+  if (s === -1 || e === -1 || e <= s) throw new Error('no JSON');
+  return JSON.parse(t.slice(s, e + 1));
 }
 
 function estCost(usage, perM) {

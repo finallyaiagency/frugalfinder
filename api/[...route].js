@@ -22,6 +22,18 @@ export default async function handler(req, res) {
   const parts = path.split('/').filter(Boolean);
   const method = req.method;
 
+  // ---- CORS: bookmarklets POST here from arbitrary pages ----
+  if (req.headers.origin) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Vary', 'Origin');
+  }
+  if (method === 'OPTIONS') {
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Telegram-Bot-Api-Secret-Token');
+    res.setHeader('Access-Control-Max-Age', '86400');
+    return res.status(204).end();
+  }
+
   try {
     // ---------------- health ----------------
     if (path === '' || path === 'health') {

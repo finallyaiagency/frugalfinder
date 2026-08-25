@@ -81,7 +81,7 @@ Verified live run: mid_web (Sonar) scored 9 vs pareto (routed DeepSeek v4 flash)
 ### Bookmarklet
 Create a bookmark with URL:
 ```javascript
-javascript:(function(){var u=location.href;var t=document.title;prompt('Send to FrugalFinder? Add budget/use hints:',t+'\n'+u)&&fetch('https://YOUR-DOMAIN.vercel.app/api/wishlists',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({item:t,source_url:u,budget:'see notes',use_case:'shared from '+u,cadence:'daily'})}).then(r=>r.json()).then(d=>alert('Added! id='+d.id))})()
+javascript:(function(){var u=location.href;var t=document.title;prompt('Send to FrugalFinder? Add budget/use hints:',t+'%5Cn'+u)&&fetch('https://frugalfinder.vercel.app/api/wishlists',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({item:t,source_url:u,budget:'see notes',use_case:'shared from '+u,cadence:'daily'})}).then(r=>r.json()).then(d=>alert('Added! id='+d.id))})()
 ```
 
 ### Email (MVP note)
