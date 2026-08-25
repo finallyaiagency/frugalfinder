@@ -56,7 +56,7 @@
 
   <div class="card muted">
     <b>Share from anywhere:</b><br>
-    • Bookmarklet: drag <a href="#" onclick="return false" title="see README">→ README has it</a> to your bookmarks bar — click on any listing page to send it here.<br>
+    • Bookmarklet: drag <a href="javascript:(function(){var u=location.href;var t=document.title;prompt('Send to FrugalFinder? Add budget/use hints:',t+'\n'+u)&&fetch('https://frugalfinder.vercel.app/api/wishlists',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({item:t,source_url:u,budget:'see notes',use_case:'shared from '+u,cadence:'daily'})}).then(r=>r.json()).then(d=>alert('Added! id='+d.id))})();" style="font-weight:600;background:var(--accent,#7c5cff);color:#fff;padding:2px 10px;border-radius:6px;text-decoration:none" title="Drag me to your bookmarks bar">Add to Wishlist</a> to your bookmarks bar — click it on any listing page to send it here.<br>
     • Telegram: message your bot with <code>wishlist: &lt;item&gt;</code> lines.<br>
     • API/MCP: POST to <code>/api/wishlists</code> or connect an MCP client to <code>/api/mcp</code>.
   </div>
