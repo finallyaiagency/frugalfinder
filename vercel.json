@@ -2,11 +2,13 @@
   "version": 2,
   "builds": [
     { "src": "api/[...route].js", "use": "@vercel/node" },
-    { "src": "api/mcp.js", "use": "@vercel/node" }
+    { "src": "api/mcp.js", "use": "@vercel/node" },
+    { "src": "public/**", "use": "@vercel/static" }
   ],
   "routes": [
     { "src": "/api/mcp", "dest": "/api/mcp.js" },
     { "src": "/api/(.*)", "dest": "/api/[...route].js" },
+    { "src": "/", "dest": "/public/index.html" },
     { "src": "/(.*)", "dest": "/public/$1" }
   ],
   "crons": [{ "path": "/api/scan-all", "schedule": "0 0 * * *" }]
