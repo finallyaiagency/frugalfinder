@@ -1,6 +1,6 @@
 // POST /api/reservations  — create a reservation wishlist.
 import crypto from 'node:crypto';
-import { saveWishlist } from '../_lib/store.js';
+import { saveWishlist } from './_lib/store.js';
 
 export const maxDuration = 300;
 
@@ -48,7 +48,7 @@ export default async function handler(req, res) {
   await saveWishlist(wl);
   setImmediate(async () => {
     try {
-      const { scanReservation } = await import('../_lib/reservations.js');
+      const { scanReservation } = await import('./_lib/reservations.js');
       await scanReservation(wl.id);
     } catch {}
   });

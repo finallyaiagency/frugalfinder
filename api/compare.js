@@ -1,7 +1,7 @@
 // POST /api/compare — run a 3-model comparison scan on a wishlist (or inline item).
 // GET  /api/compare — performance summary across all runs.
-import { getWishlist } from '../_lib/store.js';
-import { compareModels, getModelPerf } from '../_lib/llm-compare.js';
+import { getWishlist } from './_lib/store.js';
+import { compareModels, getModelPerf } from './_lib/llm-compare.js';
 
 export const maxDuration = 300;
 

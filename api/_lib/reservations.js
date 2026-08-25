@@ -5,7 +5,6 @@
 import crypto from 'node:crypto';
 import { saveWishlist, getWishlist, listWishlists, appendScan } from './store.js';
 import { analyzeWishlist } from './frugal.js';
-import { OPENROUTER_API_KEY } from './frugal.js';
 
 // Fetch campground metadata from recreation.gov public API (verified working)
 export async function getCampgroundMeta(cgId) {
@@ -83,6 +82,11 @@ export function siteMatchesPrefs(s, wl) {
   if (p.includes('river') && (s.name || '').match(/river|creek/i)) return true;
   if (p.includes('shade') && attributeNames(s).includes('shade')) return true;
   return false;
+}
+
+export async function listReservations() {
+  const all = await listWishlists();
+  return all.filter((w) => w.type === 'reservation');
 }
 
 export async function scanReservation(id) {

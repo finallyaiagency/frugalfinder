@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
-import { saveWishlist } from '../_lib/store.js';
-import { analyzeWishlist } from '../_lib/frugal.js';
+import { saveWishlist } from './_lib/store.js';
+import { analyzeWishlist } from './_lib/frugal.js';
 
 export const maxDuration = 300; // Vercel Pro allows up to 300s on serverless
 

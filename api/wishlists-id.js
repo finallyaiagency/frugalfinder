@@ -1,4 +1,4 @@
-import { getWishlist, listWishlists, saveWishlist } from '../_lib/store.js';
+import { getWishlist, listWishlists, saveWishlist } from './_lib/store.js';
 
 export const maxDuration = 300;
 

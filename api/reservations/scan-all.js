@@ -1,5 +1,5 @@
 // Cron target: scan all active reservation wishlists once per day (00:00 UTC).
-import { listReservations, scanReservation } from './reservations/index.js';
+import { listReservations, scanReservation } from '../_lib/reservations.js';
 
 export const maxDuration = 300;
 

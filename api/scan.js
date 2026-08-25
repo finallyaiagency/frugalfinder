@@ -1,5 +1,5 @@
-import { getWishlist, appendScan, saveWishlist } from '../_lib/store.js';
-import { analyzeWishlist } from '../_lib/frugal.js';
+import { getWishlist, appendScan, saveWishlist } from './_lib/store.js';
+import { analyzeWishlist } from './_lib/frugal.js';
 
 export const maxDuration = 300;
 
