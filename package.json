@@ -8,6 +8,7 @@
     "test": "node --test test/"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.13.0"
+    "@modelcontextprotocol/sdk": "^1.13.0",
+    "@vercel/functions": "^3.9.5"
   }
 }

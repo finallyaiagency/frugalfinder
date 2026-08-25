@@ -4,6 +4,7 @@ import { saveWishlist, getWishlist, listWishlists, appendScan } from './_lib/sto
 import { analyzeWishlist, buildUserPrompt } from './_lib/frugal.js';
 import { getCampgroundMeta, getCampgroundSites, scanReservation, listReservations } from './_lib/reservations.js';
 import { compareModels, getModelPerf } from './_lib/llm-compare.js';
+import { waitUntil } from '@vercel/functions';
 
 export const maxDuration = 300;
 
@@ -180,7 +181,7 @@ export default async function handler(req, res) {
         if (!wl.campground_ids.length && !body.item) return json(res, 400, { error: 'campground_ids or item required' });
         if (!wl.campground_ids.length) wl.item = String(body.item).slice(0, 500);
         await saveWishlist(wl);
-        setImmediate(async () => { try { await scanReservation(wl.id); } catch {} });
+        waitUntil(scanReservation(wl.id).catch(() => {}));
         return json(res, 201, { ok: true, reservation_id: wl.id, _links: { scan_now: `/api/reservations/scan?id=${wl.id}` } });
       }
       if (method === 'GET' && id) {
