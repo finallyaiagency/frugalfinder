@@ -1,12 +1,22 @@
-// FrugalFinder storage layer — Vercel KV (Upstash Redis) with graceful in-memory fallback.
-// All data is JSON-serializable; keys are namespaced under ff:.
+// FrugalFinder storage layer — three tiers:
+//   1. Vercel KV / Upstash (if KV_REST_API_URL + KV_REST_API_TOKEN set)  [best]
+//   2. GitHub-backed JSON store (if GH_TOKEN + GH_DATA_REPO set)         [durable default]
+//   3. In-memory Map fallback                                            [dev only]
+// Memory always mirrors writes for fast reads within a warm instance.
+// Keys are namespaced under ff:.
+
+import { durableGet, durableSet } from './durable.js';
 
 let memory = null;
+
+function mem() {
+  if (!memory) memory = new Map();
+  return memory;
+}
 
 function getKV() {
   if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) return null;
   try {
-    // Lazy import so the app works without @vercel/kv installed locally.
     const mod = require('@vercel/kv');
     return { kv: mod.kv, type: 'kv' };
   } catch {
@@ -14,43 +24,56 @@ function getKV() {
   }
 }
 
-function mem() {
-  if (!memory) memory = new Map();
-  return memory;
+export function storageMode() {
+  if (getKV()) return 'vercel-kv';
+  if ((process.env.GH_TOKEN || process.env.GITHUB_TOKEN)) return 'github';
+  return 'memory';
 }
 
 export async function put(key, value, ttlSeconds) {
   const k = `ff:${key}`;
+  const str = JSON.stringify(value);
   const store = getKV();
   if (store) {
-    if (ttlSeconds) await store.kv.set(k, JSON.stringify(value), { ex: ttlSeconds });
-    else await store.kv.set(k, JSON.stringify(value));
+    if (ttlSeconds) await store.kv.set(k, str, { ex: ttlSeconds });
+    else await store.kv.set(k, str);
   } else {
-    const entry = { v: JSON.stringify(value) };
+    const entry = { v: str };
     if (ttlSeconds) entry.exp = Date.now() + ttlSeconds * 1000;
     mem().set(k, entry);
+    if (!ttlSeconds && storageMode() === 'github') {
+      await durableSet(k, str).catch(() => {}); // non-fatal
+    }
   }
 }
 
 export async function get(key) {
   const k = `ff:${key}`;
-  const store = getKV();
+  // memory first (fresh mirror)
   let raw = null;
-  if (store) {
-    raw = await store.kv.get(k);
-  } else {
-    const entry = mem().get(k);
-    if (entry && (!entry.exp || entry.exp > Date.now())) raw = entry.v;
+  const entry = mem().get(k);
+  if (entry && (!entry.exp || entry.exp > Date.now())) raw = entry.v;
+
+  if (raw == null) {
+    const store = getKV();
+    if (store) {
+      raw = await store.kv.get(k);
+    } else if (storageMode() === 'github') {
+      raw = await durableGet(k).catch(() => null);
+      if (raw != null) mem().set(k, { v: raw }); // cache in warm instance
+    }
   }
+
   if (raw == null) return null;
   try { return typeof raw === 'string' ? JSON.parse(raw) : raw; } catch { return raw; }
 }
 
 export async function del(key) {
   const k = `ff:${key}`;
+  mem().delete(k);
   const store = getKV();
   if (store) await store.kv.del(k);
-  else mem().delete(k);
+  // GitHub layer: leave tombstone-free; deletion is rare in this app
 }
 
 // ---- Wishlists -----------------------------------------------------------
@@ -82,11 +105,12 @@ export async function getWishlist(id) {
 export async function listWishlists() {
   const ids = await indexAll();
   const out = [];
+  let dirty = false;
   for (const id of ids) {
     const wl = await getWishlist(id);
-    if (wl) out.push(wl);
-    else await indexSave((await indexAll()).filter(x => x !== id)); // prune dead
+    if (wl) out.push(wl); else dirty = true;
   }
+  if (dirty) await indexSave(out.map((w) => w.id));
   return out.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 }
 
@@ -96,8 +120,8 @@ export async function appendScan(wishlistId, scan) {
   const wl = await getWishlist(wishlistId);
   if (!wl) return null;
   wl.scans = wl.scans || [];
-  wl.scans.unshift(scan);
-  wl.scans = wl.scans.slice(0, 20); // keep last 20 scans per wishlist
-  await put(WL_PREFIX + wishlistId, wl);
+  if (scan) wl.scans.unshift(scan);
+  wl.scans = wl.scans.slice(0, 20);
+  await saveWishlist(wl);
   return wl;
 }
