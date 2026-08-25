@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FrugalFinder — Admin: LLM Quality vs Cost</title>
+<style>
+  :root { --bg:#0f1115; --card:#171a21; --line:#262b36; --txt:#e7ebf3; --dim:#9aa4b5; --acc:#4ade80; --warn:#fbbf24; --bad:#f87171; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--txt); font:15px/1.55 -apple-system,'Segoe UI',Roboto,sans-serif; padding:24px 16px 60px; }
+  .wrap { max-width:960px; margin:0 auto; }
+  h1 { font-size:1.5rem; } h1 span { color:var(--acc); }
+  h2 { margin:28px 0 12px; font-size:1.15rem; color:var(--dim); text-transform:uppercase; letter-spacing:.05em;}
+  table { width:100%; border-collapse:collapse; background:var(--card); border-radius:10px; overflow:hidden; }
+  th, td { padding:10px 12px; text-align:left; border-bottom:1px solid var(--line); font-size:.88rem; }
+  th { background:#10131a; color:var(--dim); text-transform:uppercase; font-size:.72rem; letter-spacing:.06em;}
+  tr:last-child td { border-bottom:0; }
+  .num { text-align:right; font-variant-numeric:tabular-nums; }
+  .badge { padding:2px 8px; border-radius:99px; font-size:.72rem; }
+  .b-pareto { background:#1e293b; color:#7dd3fc;} .b-budget { background:#12351f; color:var(--acc);} .b-mid { background:#3b2f14; color:var(--warn);}
+  .muted { color:var(--dim); font-size:.85rem; }
+  a { color:var(--acc); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🍀 Frugal<span>Admin</span> — LLM quality/cost monitor</h1>
+  <p class="muted">Three model tiers race on every comparison scan; a judge ranks them. This dashboard aggregates all runs so you can swap the default runner as models change weekly.</p>
+
+  <h2>Tier performance (all runs)</h2>
+  <table id="perf"><thead><tr>
+    <th>Tier</th><th>Model</th><th class="num">Runs</th><th class="num">Avg score</th><th class="num">Wins</th><th class="num">Judged worst</th><th class="num">Errors</th><th class="num">Avg tokens/run</th><th class="num">Avg cost/run</th>
+  </tr></thead><tbody></tbody></table>
+  <p class="muted" style="margin-top:6px;">Score = judge rating (1–10). "Wins"/"worst" = how often the judge picked it best/worst.</p>
+
+  <h2>Recent comparisons</h2>
+  <table id="recent"><thead><tr>
+    <th>When</th><th>Item</th><th>Best</th><th>Worst</th><th class="num">Cost est.</th><th>Judge reasoning</th>
+  </tr></thead><tbody></tbody></table>
+
+  <p style="margin-top:30px;"><a href="/">← Back to FrugalFinder</a></p>
+</div>
+<script>
+const tierBadge = t => `<span class="badge b-${t}">${t}</span>`;
+async function load() {
+  try {
+    const r = await fetch('/api/compare');
+    const d = await r.json();
+    const tb = document.querySelector('#perf tbody');
+    tb.innerHTML = (d.summary || []).map(s =>
+      `<tr><td>${tierBadge(s.tier)}</td><td><code>${s.slug}</code></td>
+       <td class="num">${s.runs}</td><td class="num">${s.avg_score ?? '—'}</td>
+       <td class="num">${s.wins}</td><td class="num">${s.judged_worst}</td>
+       <td class="num">${s.errors}</td><td class="num">${s.avg_tokens_per_run ?? '—'}</td>
+       <td class="num">$${(s.avg_cost_per_run_usd ?? 0).toFixed ? s.avg_cost_per_run_usd.toFixed(4) : s.avg_cost_per_run_usd}</td></tr>`
+    ).join('') || '<tr><td colspan=9 class="muted">No runs yet — POST /api/compare to start.</td></tr>';
+
+    const rb = document.querySelector('#recent tbody');
+    rb.innerHTML = (d.recent || []).map(r => {
+      const e = Object.fromEntries((r.entries || []).map(x => [x.tier, x]));
+      return `<tr>
+        <td>${new Date(r.at).toLocaleString()}</td>
+        <td>${r.item || ''}</td>
+        <td>${r.best_tier ? tierBadge(r.best_tier) : '—'} ${r.judge?.best || ''}</td>
+        <td>${r.worst_tier ? tierBadge(r.worst_tier) : '—'}</td>
+        <td class="num">$${(r.total_cost_est ?? 0).toFixed ? r.total_cost_est.toFixed(4) : r.total_cost_est}</td>
+        <td class="muted">${(r.judge?.reasoning || '').slice(0, 120)}</td></tr>`;
+    }).join('') || '<tr><td colspan=6 class="muted">No recent comparisons.</td></tr>';
+  } catch(e) { document.body.insertAdjacentHTML('beforeend', `<p style="color:var(--bad)">Failed to load perf data: ${e}</p>`); }
+}
+load();
+</script>
+</body>
+</html>

@@ -2,10 +2,10 @@
   "version": 2,
   "builds": [{ "src": "api/**/*.js", "use": "@vercel/node" }],
   "routes": [
+    { "src": "/api/reservations/scan", "dest": "/api/reservations/index.js" },
+    { "src": "/api/reservations/?(\\?.*)?", "dest": "/api/reservations/index.js" },
     { "src": "/api/(.*)", "dest": "/api/$1" },
     { "src": "/(.*)", "dest": "/public/$1" }
   ],
-  "crons": [
-    { "path": "/api/scan-all", "schedule": "0 * * * *" }
-  ]
+  "crons": [{ "path": "/api/scan-all", "schedule": "0 0 * * *" }]
 }

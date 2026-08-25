@@ -1,4 +1,4 @@
-import { getWishlist, appendScan } from '../_lib/store.js';
+import { getWishlist, appendScan, saveWishlist } from '../_lib/store.js';
 import { analyzeWishlist } from '../_lib/frugal.js';
 
 export const maxDuration = 300;
@@ -29,28 +29,19 @@ export default async function handler(req, res) {
       at: new Date().toISOString(),
       type: 'manual-scan',
       ok: !!result.ok,
-      ...(result.ok ? { analysis: result.analysis, model_used: result.model_used } : { error: result.error }),
+      ...(result.ok
+        ? { analysis: result.analysis, model_used: result.model_used }
+        : { error: result.error }),
     };
     await appendScan(id, scan);
     if (result.ok) {
       wl.analysis = result.analysis;
       wl.model_used = result.model_used;
-      // persist analysis onto the wishlist object too
-      await appendScan(id, null).catch(() => {}); // no-op to keep signature
-      await saveAnalysis(id, result.analysis, result.model_used);
+      await saveWishlist(wl);
     }
     res.status(result.ok ? 200 : 502).json(scan);
     return;
   }
 
   res.status(405).json({ error: 'Use GET or POST' });
-}
-
-async function saveAnalysis(id, analysis, model) {
-  const { saveWishlist, getWishlist } = await import('../_lib/store.js');
-  const wl = await getWishlist(id);
-  if (!wl) return;
-  wl.analysis = analysis;
-  wl.model_used = model;
-  await saveWishlist(wl);
 }
