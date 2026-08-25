@@ -24,6 +24,46 @@
 | `/api/scan-all` | POST | Cron target — scans all due wishlists |
 | `/api/telegram` | POST | Telegram webhook ingest |
 | `/api/mcp` | POST | MCP Streamable HTTP endpoint for external AI agents |
+| `/api/reservations` | POST | Create campground reservation watcher (Recreation.gov) |
+| `/api/reservations?id=` | GET/PATCH | List/fetch/update reservation watchers |
+| `/api/reservations/scan?id=` | POST | Trigger reservation scan now |
+| `/api/compare` | POST/GET | 3-model LLM comparison scan / performance summary |
+| `/admin.html` | GET | Admin dashboard: LLM quality-vs-cost monitor |
+
+## Campground Reservation Watcher
+
+Watch multiple Recreation.gov campgrounds for openings in your date window.
+`site_preference: "lakefront"` scores lakefront sites higher when they free up via cancellation.
+Scoring: availability + preference match + features (shade, pets, paved driveway) − price.
+
+```bash
+curl -X POST https://YOUR-DOMAIN.vercel.app/api/reservations \
+  -H 'Content-Type: application/json' \
+  -d '{"campground_ids":["233117","232665"],"date_window":"2026-10-09 to 2026-10-12","site_preference":"lakefront","cadence":"daily"}'
+```
+
+Known limit: Recreation.gov's date-based availability endpoint currently returns 404 to anonymous
+callers (API changed). The scanner uses their public site-metadata search (verified working:
+loops, attributes, status, price). When date-level availability is re-exposed, wire it into
+`getCampgroundSites()` — everything downstream already handles it. ReserveAmerica (NC state parks)
+blocks anonymous API calls; add as a provider with cookies/session if needed later.
+
+## Multi-LLM Comparison ("quality vs cost control")
+
+`POST /api/compare` races three model tiers on the same frugal-bot prompt:
+
+| Tier | Default model | Purpose |
+|---|---|---|
+| `pareto` | `openrouter/auto` | OpenRouter's own best-model routing |
+| `budget_web` | `openai/gpt-4.1-nano` (+web plugin) | cheapest web-capable |
+| `mid_web` | `perplexity/sonar` | mid-range web-capable |
+
+A judge (`anthropic/claude-opus-4.1`) then ranks all three blind (order-shuffled), scoring 1–10.
+Every run logs tokens/cost/score/wins to the perf store; `GET /api/compare` aggregates them and
+`/admin.html` visualizes. All slugs are env-overridable weekly without code changes:
+`PARETO_MODEL`, `BUDGET_WEB_MODEL`, `MID_WEB_MODEL`, `JUDGE_MODEL`.
+
+Verified live run: mid_web (Sonar) scored 9 vs pareto (routed DeepSeek v4 flash) 8 vs budget (GPT-4.1-nano) 4–7, total cost ≈ $0.05/comparison.
 
 ## Env vars (set in Vercel dashboard → Settings → Environment Variables)
 
@@ -34,6 +74,7 @@
 - `CRON_SECRET` (optional but recommended) — protects `/api/scan-all`
 - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET` (optional) — Telegram ingest
 - `MCP_TOKEN` (optional) — shared secret for `/api/mcp`
+- `PARETO_MODEL`, `BUDGET_WEB_MODEL`, `MID_WEB_MODEL`, `JUDGE_MODEL` (optional) — LLM comparison tier overrides
 
 ## Sharing paths
 
@@ -83,5 +124,10 @@ Exposed tools:
 - `get_wishlist(id)` → full record incl. latest analysis & scan history
 - `list_wishlists()` → summary of all active wishlists
 - `trigger_scan(id)` → force an out-of-band frugal-bot scan
+- `submit_reservation_watch(campground_ids, date_window?, site_preference?, min_features?, max_price?, cadence?, notes?)` → campground watcher + first scan (lakefront preference supported)
+- `list_reservations()` → all reservation watchers with last results
+- `trigger_reservation_scan(id)` → re-scan a reservation now
+- `run_model_comparison(item, use_case, budget, flexibility?)` → 3-tier LLM race + judge verdict
+- `get_model_performance()` → aggregated quality/cost stats per tier
 
 Calling agents should treat it as **submit + poll**: submit once, then call `get_wishlist` on whatever cadence suits them (or wait for their own scheduler). The MCP spec has no push channel for arbitrary updates, so periodic polling is the standard pattern.
