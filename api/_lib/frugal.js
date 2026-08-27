@@ -1,8 +1,8 @@
 // FrugalFinder — Frugal-Bot methodology analyzer.
-// Calls OpenRouter chat completions. Uses a free stealth model by default so
-// MVP runs at $0 LLM cost; override with FRUGAL_MODEL env var.
+// Calls OpenRouter chat completions. The default is a currently supported
+// OpenRouter model; override with FRUGAL_MODEL in the deployment environment.
 
-const DEFAULT_MODEL = process.env.FRUGAL_MODEL || 'stealth/ox-alpha';
+const DEFAULT_MODEL = process.env.FRUGAL_MODEL || 'z-ai/glm-5.3-flash';
 
 const SYSTEM_PROMPT = `You are FrugalBot, a value-optimization shopping analyst. Your job is NOT to find the cheapest option — it is to maximize JOY-PER-DOLLAR for the requester.
 
