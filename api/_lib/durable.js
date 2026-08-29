@@ -3,7 +3,13 @@
 // GitHub Contents API. Selected when GH_TOKEN + GH_DATA_REPO are set;
 // Vercel KV (if attached) still takes precedence; in-memory is last resort.
 
-const REPO = process.env.GH_DATA_REPO || 'finallyaiagency/frugalfinder-data';
+export function normalizeRepo(value) {
+  const raw = String(value || 'finallyaiagency/frugalfinder-data').trim().replace(/\/$/, '');
+  const match = raw.match(/github\.com[/:]([^/]+\/[^/#]+)(?:\.git)?$/i);
+  return (match ? match[1] : raw).replace(/\.git$/i, '');
+}
+
+const REPO = normalizeRepo(process.env.GH_DATA_REPO);
 const BRANCH = 'main';
 let authHeader = null;
 

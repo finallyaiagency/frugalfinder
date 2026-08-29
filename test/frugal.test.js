@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import { buildUserPrompt } from '../api/_lib/frugal.js';
 import { shoppingIntent, matchPreference } from '../api/_lib/wishlist.js';
+import { normalizeRepo } from '../api/_lib/durable.js';
 
 test('buildUserPrompt includes all wishlist fields', () => {
   const wl = {
@@ -34,6 +35,11 @@ test('ordinary Telegram conversation is not shopping intent', () => {
   assert.equal(shoppingIntent('', { hasPhoto: true }), true);
   assert.equal(matchPreference('EXACT'), 'exact');
   assert.equal(matchPreference('anything else'), 'similar');
+});
+
+test('GitHub durable-store repo accepts an owner/repo or GitHub URL', () => {
+  assert.equal(normalizeRepo('finallyaiagency/frugalfinder-data'), 'finallyaiagency/frugalfinder-data');
+  assert.equal(normalizeRepo('https://github.com/finallyaiagency/frugalfinder-data'), 'finallyaiagency/frugalfinder-data');
 });
 
 test('buildUserPrompt omits source_url when absent', () => {
