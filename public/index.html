@@ -5,32 +5,35 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>FrugalFinder — best value deal hunter</title>
 <style>
-  :root { --bg:#08111f; --card:rgba(17,31,49,.92); --line:#29405d; --txt:#eef5ff; --dim:#a4b4c8; --acc:#5eead4; --warn:#fbbf24; --ink:#06221d; }
+  :root { --bg:#f8f6f2; --navy:#101d36; --navy-2:#172846; --card:#fffdfa; --line:#e5e1dc; --txt:#17213a; --dim:#68748a; --acc:#eab91b; --warn:#c98b13; --ink:#172846; }
   * { box-sizing:border-box; margin:0; }
-  body { background:radial-gradient(circle at 10% 0,#173b5d 0,transparent 32rem),radial-gradient(circle at 95% 15%,#164e4a 0,transparent 28rem),var(--bg); color:var(--txt); font:15px/1.55 -apple-system,'Segoe UI',Roboto,sans-serif; padding:40px 16px 72px; min-height:100vh; }
-  .wrap { max-width:760px; margin:0 auto; }
-  h1 { font-size:2.2rem; letter-spacing:-.05em; } h1 span { color:var(--acc); }
-  .tag { color:var(--dim); margin:6px 0 26px; max-width:620px; font-size:1.05rem; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:22px; margin-bottom:16px; box-shadow:0 18px 48px rgba(0,0,0,.2); overflow:hidden; }
+  body { background:var(--bg); color:var(--txt); font:15px/1.55 -apple-system,'Segoe UI',Roboto,sans-serif; min-height:100vh; }
+  .wrap { max-width:none; margin:0; }
+  .hero { background:radial-gradient(circle at 15% 0,#223b62 0,transparent 34rem),var(--navy); color:#fff; padding:18px max(24px,calc((100% - 1100px)/2)) 90px; }
+  .brandbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:88px; font-weight:750; } .brandbar b { font-size:1.1rem; } .brandbar span { color:var(--acc); }
+  h1 { font-family:Georgia,'Times New Roman',serif; font-size:clamp(2.7rem,6vw,5.2rem); line-height:.98; letter-spacing:-.065em; max-width:800px; } h1 span { color:var(--acc); }
+  .tag { color:#c8d0dc; margin:22px 0 0; max-width:620px; font-size:1.1rem; }
+  .workspace { max-width:1100px; margin:-44px auto 0; padding:0 24px 70px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:24px; margin-bottom:18px; box-shadow:0 8px 24px rgba(23,33,58,.06); overflow:hidden; }
   label { display:block; font-size:.8rem; color:var(--dim); text-transform:uppercase; letter-spacing:.06em; margin:10px 0 4px; }
-  textarea,input,select { width:100%; background:#0d0f14; color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font:inherit; }
+  textarea,input,select { width:100%; background:#fff; color:var(--txt); border:1px solid #d7d3cd; border-radius:7px; padding:11px 12px; font:inherit; }
   textarea { min-height:64px; resize:vertical; }
-  button { background:var(--acc); color:var(--ink); font-weight:750; border:0; border-radius:9px; padding:12px 20px; cursor:pointer; margin-top:14px; width:100%; font-size:1rem; }
+  button { background:var(--navy-2); color:#fff; font-weight:750; border:0; border-radius:6px; padding:12px 20px; cursor:pointer; margin-top:14px; width:100%; font-size:1rem; }
   button:disabled { opacity:.5; cursor:wait; }
   .result { white-space:pre-wrap; font-size:.92rem; }
-  .badge { display:inline-block; padding:2px 8px; border-radius:99px; font-size:.72rem; background:#12351f; color:var(--acc); margin-right:6px;}
+  .badge { display:inline-block; padding:2px 8px; border-radius:99px; font-size:.72rem; background:#f8efd3; color:#7f5b00; margin-right:6px;}
   .muted { color:var(--dim); font-size:.85rem; }
   code { background:#0d0f14; padding:2px 6px; border-radius:4px; font-size:.85em; overflow-wrap:anywhere; }
   details { margin-top:10px; } summary { cursor:pointer; color:var(--acc); }
-  a { color:var(--acc); overflow-wrap:anywhere; }
+  a { color:#1f5a90; overflow-wrap:anywhere; }
   .result, li, p { overflow-wrap:anywhere; }
-  .grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; } .grid label { margin-top:0; } .actions { display:flex; gap:8px; margin-top:12px; } .actions button { width:auto; margin:0; padding:7px 11px; font-size:.82rem; } .ghost { background:transparent; color:var(--txt); border:1px solid var(--line); } .danger { color:#fecaca; border-color:#7f1d1d; } .wish { padding:15px 0; border-bottom:1px solid var(--line); } .wish:last-child { border:0; } .wish-copy { color:var(--dim); margin-top:4px; } .wish-note { color:#c8d6e8; font-size:.9rem; margin-top:6px; } @media(max-width:560px){.grid{grid-template-columns:1fr}}
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; } .grid label { margin-top:0; } .actions { display:flex; gap:8px; margin-top:12px; } .actions button { width:auto; margin:0; padding:7px 11px; font-size:.82rem; } .ghost { background:transparent; color:var(--txt); border:1px solid var(--line); } .danger { color:#a94040; border-color:#d8aaaa; } .wish { padding:15px 0; border-bottom:1px solid var(--line); } .wish:last-child { border:0; } .wish-copy { color:var(--dim); margin-top:4px; } .wish-note { color:#4d5b70; font-size:.9rem; margin-top:6px; } @media(max-width:560px){.grid{grid-template-columns:1fr}.hero{padding-bottom:70px}.brandbar{margin-bottom:58px}}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>🍀 Frugal<span>Finder</span></h1>
-  <p class="tag">Not the cheapest. Not the fanciest. The <b>best value</b>. An agent watches the market for what you actually want.</p>
+  <header class="hero"><div class="brandbar"><b>◈ Frugal<span>Finder</span></b><a href="#workspace" style="color:#fff;background:#263a5f;padding:8px 15px;border-radius:6px;text-decoration:none">Your wishlists</a></div><h1>The smarter way to <span>buy well.</span></h1><p class="tag">Describe what you need. FrugalFinder weighs value, alternatives, condition, and timing—then keeps watching for the right deal.</p></header>
+  <main class="workspace" id="workspace">
 
   <div class="card">
     <label>What do you want?</label>
@@ -68,6 +71,7 @@
     <b>Your wishlists</b>
     <div id="list" class="muted" style="margin-top:8px;">loading…</div>
   </div>
+  </main>
 </div>
 <script>
 const $ = id => document.getElementById(id);
