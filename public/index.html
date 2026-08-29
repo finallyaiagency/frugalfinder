@@ -24,7 +24,7 @@
   details { margin-top:10px; } summary { cursor:pointer; color:var(--acc); }
   a { color:var(--acc); overflow-wrap:anywhere; }
   .result, li, p { overflow-wrap:anywhere; }
-  .grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; } .grid label { margin-top:0; } .actions { display:flex; gap:8px; margin-top:12px; } .actions button { width:auto; margin:0; padding:7px 11px; font-size:.82rem; } .ghost { background:transparent; color:var(--txt); border:1px solid var(--line); } .danger { color:#fecaca; border-color:#7f1d1d; } .wish { padding:13px 0; border-bottom:1px solid var(--line); } .wish:last-child { border:0; } @media(max-width:560px){.grid{grid-template-columns:1fr}}
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; } .grid label { margin-top:0; } .actions { display:flex; gap:8px; margin-top:12px; } .actions button { width:auto; margin:0; padding:7px 11px; font-size:.82rem; } .ghost { background:transparent; color:var(--txt); border:1px solid var(--line); } .danger { color:#fecaca; border-color:#7f1d1d; } .wish { padding:15px 0; border-bottom:1px solid var(--line); } .wish:last-child { border:0; } .wish-copy { color:var(--dim); margin-top:4px; } .wish-note { color:#c8d6e8; font-size:.9rem; margin-top:6px; } @media(max-width:560px){.grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -77,12 +77,17 @@ async function loadList() {
     const d = await r.json();
     if (!d.wishlists?.length) { $('list').innerHTML = 'No wishlists yet — add one above.'; return; }
     $('list').innerHTML = d.wishlists.map(w =>
-      `<div class="wish"><a href="/?id=${w.id}"><code>${w.id.slice(0,8)}</code></a> <b>${esc(w.item)}</b>
+      `<div class="wish"><a href="/?id=${w.id}"><code>${w.id.slice(0,8)}</code></a> <b>${esc(displayItem(w.item))}</b>
        <span class="badge">${w.cadence}</span>${w.channel ? `<span class="badge">${w.channel}</span>`:''}
-       <span class="muted">${(w.scans||[]).length} scans · ${esc(w.match_preference||'similar')}</span><div class="actions"><button class="ghost" onclick="editWishlist('${w.id}')">Edit</button><button class="ghost danger" onclick="deleteWishlist('${w.id}')">Delete</button></div></div>`).join('');
+       <span class="muted">${(w.scans||[]).length} scans · ${esc(w.match_preference||'similar')}</span>
+       ${w.use_case?`<div class="wish-copy">${esc(brief(w.use_case))}</div>`:''}
+       ${w.notes?`<div class="wish-note">📝 ${esc(brief(w.notes))}</div>`:''}
+       <div class="actions"><button class="ghost" onclick="editWishlist('${w.id}')">Edit</button><button class="ghost danger" onclick="deleteWishlist('${w.id}')">Delete</button></div></div>`).join('');
   } catch(e) { $('list').textContent = 'Failed to load list.'; }
 }
 function esc(s){ return String(s??'').replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function displayItem(value){ return /^https?:\/\//i.test(String(value||'')) ? 'Shared product listing' : (value || 'Wishlist item'); }
+function brief(value){ const text=String(value||''); return /^https?:\/\//i.test(text) ? 'Link attached' : (text.length>180 ? text.slice(0,177)+'…' : text); }
 $('go').onclick = async () => {
   $('go').disabled = true; $('out').innerHTML = '<span class="muted">FrugalBot is thinking… this can take up to ~90s for deep reasoning models.</span>';
   try {
@@ -110,7 +115,7 @@ $('go').onclick = async () => {
   try {
     const r = await fetch('/api/wishlists?id='+id); const wl = await r.json();
     if (wl.error) { $('list').textContent = 'Wishlist not found.'; return; }
-    let html = `<h2>${esc(wl.item)}</h2><p class="muted">${wl.cadence} scans · created ${new Date(wl.created_at).toLocaleString()} · channel ${wl.channel||'web'}</p>`;
+    let html = `<h2>${esc(displayItem(wl.item))}</h2><p class="muted">${wl.cadence} scans · created ${new Date(wl.created_at).toLocaleString()} · channel ${wl.channel||'web'}</p>`;
     if (wl.analysis) {
       const a = wl.analysis;
       if (a.recommendation?.target) html += `<div class="card"><b>🎯 Target:</b> ${esc(a.recommendation.target)} <span class="badge">${esc(a.recommendation.condition||'')}</span>
@@ -127,7 +132,7 @@ $('go').onclick = async () => {
     } else {
       html += '<div class="card muted">Analysis pending… refresh in a moment.</div>';
     }
-    html += `<div class="card"><p><b>Match mode:</b> ${esc(wl.match_preference||'similar')}</p>${wl.notes?`<p><b>Notes & constraints:</b> ${esc(wl.notes)}</p>`:''}<div class="actions"><button onclick="scanNow('${id}')">Scan now</button><button class="ghost" onclick="editWishlist('${id}')">Edit</button><button class="ghost danger" onclick="deleteWishlist('${id}')">Delete</button></div></div>`;
+    html += `<div class="card">${wl.use_case?`<p><b>What it’s for:</b> ${esc(brief(wl.use_case))}</p>`:''}<p><b>Match mode:</b> ${esc(wl.match_preference||'similar')}</p>${wl.notes?`<p><b>Notes & constraints:</b> ${esc(brief(wl.notes))}</p>`:''}<div class="actions"><button onclick="scanNow('${id}')">Scan now</button><button class="ghost" onclick="editWishlist('${id}')">Edit</button><button class="ghost danger" onclick="deleteWishlist('${id}')">Delete</button></div></div>`;
     $('wrap') && 0;
     document.querySelector('.wrap').innerHTML = html;
   } catch(e) { console.error(e); }
