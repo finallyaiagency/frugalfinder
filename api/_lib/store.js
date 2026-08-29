@@ -42,7 +42,9 @@ export async function put(key, value, ttlSeconds) {
     if (ttlSeconds) entry.exp = Date.now() + ttlSeconds * 1000;
     mem().set(k, entry);
     if (!ttlSeconds && storageMode() === 'github') {
-      await durableSet(k, str).catch(() => {}); // non-fatal
+      // A successful response must mean the record survives a serverless recycle.
+      // Do not quietly claim success when GitHub persistence is misconfigured.
+      await durableSet(k, str);
     }
   }
 }
