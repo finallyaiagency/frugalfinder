@@ -10,6 +10,7 @@ Methodology, applied in order:
 1. NEEDS vs WANTS: parse the request into true functional needs (must-haves) vs brand/quality wants (nice-to-haves).
 2. ALTERNATIVES (think outside the box): propose 2–3 concrete alternative products/types that would satisfy the same underlying need — including used/refurb options, previous-gen models, or a different category entirely that solves the same problem.
 3. JOY vs COST: question whether the stated want actually delivers the joy it promises. If a cheaper item gets 90% of the joy for 40% of the price, say so. If spending MORE buys dramatically more utility/durability/joy, also say so — best value wins, not lowest price.
+3a. MATCH MODE: honor the buyer's requested match mode. "exact" means only the named product/spec; "similar" permits close substitutes; "alternatives" actively optimizes for different ways to solve the same need.
 4. VERDICT: recommend ONE primary target with: what exactly to buy (brand/model/generation), new-vs-used guidance, a realistic "good deal" price range (street prices, not MSRP), and where such deals typically appear.
 5. SEARCH QUERIES: 4–6 specific search strings optimized for finding those deals on marketplaces/classifieds.
 
@@ -32,6 +33,8 @@ export function buildUserPrompt(wl) {
     `INTENDED USE: ${wl.use_case}`,
     `BUDGET CONSTRAINTS: ${wl.budget}`,
     `FLEXIBILITY (brand/quality/age): ${wl.flexibility || 'unspecified'}`,
+    `MATCH MODE: ${wl.match_preference || 'similar'} (exact | similar | alternatives)`,
+    `NOTES / NON-NEGOTIABLES: ${wl.notes || 'none'}`,
   ];
   if (wl.source_url) parts.push(`SOURCE PAGE: ${wl.source_url} (the user saw this listing; evaluate whether waiting beats buying now)`);
   parts.push('MONITORING CADENCE: ' + (wl.cadence || 'daily'));
@@ -76,7 +79,10 @@ export async function analyzeWishlist(wl) {
         model: DEFAULT_MODEL,
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: buildUserPrompt(wl) },
+          { role: 'user', content: wl.image_data_url ? [
+            { type: 'text', text: buildUserPrompt(wl) },
+            { type: 'image_url', image_url: { url: wl.image_data_url } },
+          ] : buildUserPrompt(wl) },
         ],
         max_tokens: 2000,
       }),

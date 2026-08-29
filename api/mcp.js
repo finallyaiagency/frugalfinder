@@ -6,8 +6,9 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
 import crypto from 'node:crypto';
-import { saveWishlist, getWishlist, listWishlists } from './_lib/store.js';
+import { saveWishlist, getWishlist, listWishlists, deleteWishlist } from './_lib/store.js';
 import { analyzeWishlist } from './_lib/frugal.js';
+import { matchPreference } from './_lib/wishlist.js';
 import { scanReservation, listReservations } from './_lib/reservations.js';
 import { compareModels, getModelPerf } from './_lib/llm-compare.js';
 
@@ -25,16 +26,20 @@ server.tool(
     use_case: z.string().describe('What the buyer will actually use it for'),
     budget: z.string().describe('Budget constraints, e.g. "under $400" or "$200-350"'),
     flexibility: z.string().optional().describe('Flexibility on brand/quality/age/condition'),
+    notes: z.string().optional().describe('Constraints, measurements, compatibility requirements, or other non-negotiables'),
+    match_preference: z.enum(['exact', 'similar', 'alternatives']).optional().describe('exact = named item/spec only; similar = close substitutes; alternatives = solve the need differently'),
     cadence: z.enum(['hourly', 'daily', 'weekly']).optional().describe('Monitoring frequency (default daily)'),
     source_url: z.string().optional().describe('Optional URL of a listing that triggered this wish'),
   },
-  async ({ item, use_case, budget, flexibility, cadence, source_url }) => {
+  async ({ item, use_case, budget, flexibility, notes, match_preference, cadence, source_url }) => {
     const wl = {
       id: crypto.randomUUID(),
       item: String(item).slice(0, 500),
       use_case: String(use_case || '').slice(0, 2000),
       budget: String(budget || '').slice(0, 300),
       flexibility: String(flexibility || '').slice(0, 500),
+      notes: String(notes || '').slice(0, 2000),
+      match_preference: matchPreference(match_preference),
       cadence: cadence || 'daily',
       source_url: String(source_url || '').slice(0, 1000),
       status: 'active', scans: [],
@@ -71,6 +76,28 @@ server.tool(
     const wl = await getWishlist(id);
     if (!wl) return { content: [{ type: 'text', text: JSON.stringify({ error: 'not found' }) }] };
     return { content: [{ type: 'text', text: JSON.stringify(wl, null, 2) }] };
+  }
+);
+
+server.tool(
+  'update_wishlist',
+  { id: z.string(), item: z.string().optional(), use_case: z.string().optional(), budget: z.string().optional(), flexibility: z.string().optional(), notes: z.string().optional(), match_preference: z.enum(['exact', 'similar', 'alternatives']).optional(), cadence: z.enum(['hourly', 'daily', 'weekly']).optional() },
+  async ({ id, ...changes }) => {
+    const wl = await getWishlist(id);
+    if (!wl) return { content: [{ type: 'text', text: JSON.stringify({ error: 'not found' }) }] };
+    for (const field of ['item', 'use_case', 'budget', 'flexibility', 'notes', 'cadence']) if (changes[field] !== undefined) wl[field] = changes[field];
+    if (changes.match_preference !== undefined) wl.match_preference = matchPreference(changes.match_preference);
+    await saveWishlist(wl);
+    return { content: [{ type: 'text', text: JSON.stringify({ ok: true, wishlist: wl }, null, 2) }] };
+  }
+);
+
+server.tool(
+  'delete_wishlist', { id: z.string().describe('Wishlist id to permanently remove') },
+  async ({ id }) => {
+    if (!await getWishlist(id)) return { content: [{ type: 'text', text: JSON.stringify({ error: 'not found' }) }] };
+    await deleteWishlist(id);
+    return { content: [{ type: 'text', text: JSON.stringify({ ok: true, deleted: id }) }] };
   }
 );
 
