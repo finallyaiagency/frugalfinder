@@ -91,7 +91,7 @@ async function loadList() {
 }
 function esc(s){ return String(s??'').replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 function displayItem(value){ return /^https?:\/\//i.test(String(value||'')) ? 'Shared product listing' : (value || 'Wishlist item'); }
-function brief(value){ const text=String(value||''); return /^https?:\/\//i.test(text) ? 'Link attached' : (text.length>180 ? text.slice(0,177)+'…' : text); }
+function brief(value){ const text=String(value||'').replace(/https?:\/\/\S+/gi, 'Shared listing'); return /^https?:\/\//i.test(text) ? 'Link attached' : (text.length>180 ? text.slice(0,177)+'…' : text); }
 $('go').onclick = async () => {
   $('go').disabled = true; $('out').innerHTML = '<span class="muted">FrugalBot is thinking… this can take up to ~90s for deep reasoning models.</span>';
   try {
