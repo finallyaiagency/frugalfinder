@@ -231,10 +231,8 @@ server.tool(
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.status(204).end(); return; }
 
-  // MCP_PREVIEW_TOKEN is intentionally Preview-only: it lets a team verify a
-  // protected preview without sharing the production client credential.
-  const endpointSecrets = [process.env.MCP_TOKEN, process.env.MCP_PREVIEW_TOKEN].filter(Boolean);
-  if (endpointSecrets.length && !endpointSecrets.includes(req.headers['x-mcp-token'])) {
+  const endpointSecret = process.env.MCP_TOKEN;
+  if (endpointSecret && req.headers['x-mcp-token'] !== endpointSecret) {
     res.status(401).json({ jsonrpc: '2.0', error: { code: -32001, message: 'bad x-mcp-token' }, id: null });
     return;
   }
