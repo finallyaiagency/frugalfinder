@@ -2,12 +2,13 @@
 import crypto from 'node:crypto';
 import { saveWishlist } from './store.js';
 import { analyzeWishlist, buildUserPrompt } from './frugal.js';
+import { shoppingIntent, wishlistFields, matchPreference } from './wishlist.js';
 
 // Format: first line = item, then key: value lines for use/budget/flex/cadence.
 // Or just freeform text — FrugalBot will infer fields.
-export async function createWishlist(text) {
+export async function createWishlist(text, options = {}) {
   const lines = text.split('\n').map(s => s.trim()).filter(Boolean);
-  if (!lines.length) return 'Send me what you want to find a deal on!';
+  if (!lines.length && !options.image_data_url) return 'Send me what you want to find a deal on!';
 
   // Simple /start or help
   if (/^\/?(start|help)$/i.test(lines[0])) {
@@ -28,9 +29,7 @@ export async function createWishlist(text) {
 
   const wl = {
     id: crypto.randomUUID(),
-    item: lines[0].replace(/^wishlist:\s*/i, '').slice(0, 500),
-    use_case: '', budget: '', flexibility: '', cadence: 'daily',
-    source_url: (text.match(/https?:\/\/\S+/) || [])[0] || '',
+    ...wishlistFields({ item: (lines[0] || 'Identify the item in this photo').replace(/^wishlist:\s*/i, ''), source_url: (text.match(/https?:\/\/\S+/) || [])[0] || '' }),
     status: 'active', scans: [],
     created_at: new Date().toISOString(),
     channel: 'telegram',
@@ -41,11 +40,24 @@ export async function createWishlist(text) {
     if ((m = line.match(/^(use|use case|purpose)\s*[:\-]\s*(.+)/i))) wl.use_case = m[2].slice(0, 2000);
     else if ((m = line.match(/^(budget|price|max)\s*[:\-]\s*(.+)/i))) wl.budget = m[2].slice(0, 300);
     else if ((m = line.match(/^(flex|flexibility|brand|quality|age)\s*[:\-]\s*(.+)/i))) wl.flexibility = m[2].slice(0, 500);
+    else if ((m = line.match(/^(notes?|constraints?|must[- ]?have)\s*[:\-]\s*(.+)/i))) wl.notes = m[2].slice(0, 2000);
+    else if ((m = line.match(/^(match|mode|preference)\s*[:\-]\s*(exact|similar|alternatives)/i))) wl.match_preference = matchPreference(m[2]);
     else if ((m = line.match(/^(cadence|frequency|scan)\s*[:\-]\s*(hourly|daily|weekly)/i))) wl.cadence = m[2].toLowerCase();
   }
 
   await saveWishlist(wl);
+  if (options.deferAnalysis) {
+    // Keep the potentially large Telegram image only in this invocation; persisting
+    // it would exceed common KV limits and leaks an unnecessary copy.
+    wl.image_data_url = options.image_data_url || '';
+    return { wl, reply: `✅ Added <b>${escapeHtml(wl.item)}</b> to your wishlist. I’m checking the photo/listing and will send the value analysis shortly.\n<i>ID <code>${wl.id}</code> · scanning ${wl.cadence}</i>` };
+  }
+  return analyzeAndReply(wl);
+}
+
+export async function analyzeAndReply(wl) {
   const result = await analyzeWishlist(wl);
+  delete wl.image_data_url;
 
   if (!result.ok) {
     return `⚠️ Saved your wishlist for <b>${escapeHtml(wl.item)}</b> (id <code>${wl.id}</code>) but the analysis failed: ${escapeHtml(result.error || 'unknown')}\nI'll retry at the next scheduled scan.`;
@@ -56,6 +68,8 @@ export async function createWishlist(text) {
 
   return formatAnalysisReply(wl, result.analysis);
 }
+
+export { shoppingIntent };
 
 export function formatAnalysisReply(wl, a) {
   const out = [`✅ <b>FrugalBot analysis — ${escapeHtml(wl.item)}</b>`];

@@ -102,6 +102,12 @@ export async function getWishlist(id) {
   return get(WL_PREFIX + id);
 }
 
+export async function deleteWishlist(id) {
+  await del(WL_PREFIX + id);
+  const ids = await indexAll();
+  await indexSave(ids.filter((savedId) => savedId !== id));
+}
+
 export async function listWishlists() {
   const ids = await indexAll();
   const out = [];

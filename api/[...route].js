@@ -1,7 +1,8 @@
 // Single catch-all serverless function — routes /api/* internally.
 // Keeps us under Vercel Hobby's 12-function limit.
-import { saveWishlist, getWishlist, listWishlists, appendScan } from './_lib/store.js';
+import { saveWishlist, getWishlist, listWishlists, appendScan, deleteWishlist, get, put } from './_lib/store.js';
 import { analyzeWishlist, buildUserPrompt } from './_lib/frugal.js';
+import { wishlistFields, matchPreference } from './_lib/wishlist.js';
 import { getCampgroundMeta, getCampgroundSites, scanReservation, listReservations } from './_lib/reservations.js';
 import { compareModels, getModelPerf } from './_lib/llm-compare.js';
 import { waitUntil } from '@vercel/functions';
@@ -49,12 +50,7 @@ export default async function handler(req, res) {
         let body = await readBody(req);
         const wl = {
           id: crypto.randomUUID(),
-          item: String(body.item || '').slice(0, 500),
-          use_case: String(body.use_case || '').slice(0, 2000),
-          budget: String(body.budget || '').slice(0, 300),
-          flexibility: String(body.flexibility || '').slice(0, 500),
-          cadence: ['hourly', 'daily', 'weekly'].includes(body.cadence) ? body.cadence : 'daily',
-          source_url: String(body.source_url || '').slice(0, 1000),
+          ...wishlistFields(body),
           status: 'active', scans: [],
           created_at: new Date().toISOString(),
           channel: ['mcp', 'telegram', 'web'].includes(body.channel) ? body.channel : 'web',
@@ -88,11 +84,19 @@ export default async function handler(req, res) {
         const wl = await getWishlist(id);
         if (!wl) return json(res, 404, { error: 'not found' });
         const body = await readBody(req);
-        for (const k of ['status', 'cadence', 'budget', 'flexibility', 'use_case', 'item']) {
+        for (const k of ['status', 'cadence', 'budget', 'flexibility', 'use_case', 'item', 'notes', 'source_url']) {
           if (body[k] !== undefined) wl[k] = String(body[k]).slice(0, 2000);
         }
+        if (body.match_preference !== undefined) wl.match_preference = matchPreference(body.match_preference);
         await saveWishlist(wl);
         return json(res, 200, { ok: true, wishlist: wl });
+      }
+
+      if (method === 'DELETE' && id) {
+        const wl = await getWishlist(id);
+        if (!wl) return json(res, 404, { error: 'not found' });
+        await deleteWishlist(id);
+        return json(res, 200, { ok: true, deleted: id });
       }
     }
 
@@ -236,27 +240,51 @@ export default async function handler(req, res) {
       const update = await readBody(req);
       const msg = update.message || update.edited_message;
       const chatId = msg?.chat?.id;
-      const text = msg?.text || '';
+      const text = msg?.text || msg?.caption || '';
       if (!chatId) return json(res, 200, { ok: true, ignored: true });
 
-      // Reuse telegram-ingest parser via dynamic import
-      const { createWishlist } = await import('./_lib/telegram-ingest.js');
-      const reply = await createWishlist(text);
+      // Telegram retries slow webhooks. Record the update before background work so a
+      // retried update cannot create a second wishlist.
+      const updateKey = update.update_id == null ? '' : `tg-update:${update.update_id}`;
+      if (updateKey && await get(updateKey)) return json(res, 200, { ok: true, duplicate: true });
+
       const token = process.env.TELEGRAM_BOT_TOKEN;
-      if (token) {
-        fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+      const send = async (reply) => {
+        if (!token) return;
+        const delivered = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ chat_id: chatId, text: reply, parse_mode: 'HTML' }),
-        }).catch(() => {});
+        });
+        if (!delivered.ok) throw new Error(`Telegram confirmation failed: ${delivered.status}`);
+      };
+
+      const { createWishlist, analyzeAndReply, shoppingIntent } = await import('./_lib/telegram-ingest.js');
+      const photo = msg?.photo?.at(-1);
+      const hasUrl = /https?:\/\/\S+/i.test(text);
+      if (!shoppingIntent(text, { hasPhoto: !!photo, hasUrl })) {
+        await send('I can chat, but I only create a wishlist when you ask me to shop, find, watch, or track something. Try <code>wishlist: patio heater</code>.');
+        if (updateKey) await put(updateKey, true, 86400);
+        return json(res, 200, { ok: true, ignored: true, reason: 'not-shopping-intent' });
       }
+
+      let image_data_url = '';
+      if (photo && token && photo.file_size <= 5_000_000) {
+        const fileInfo = await fetch(`https://api.telegram.org/bot${token}/getFile?file_id=${encodeURIComponent(photo.file_id)}`).then(r => r.json());
+        if (fileInfo.ok && fileInfo.result?.file_path) {
+          const image = await fetch(`https://api.telegram.org/file/bot${token}/${fileInfo.result.file_path}`);
+          if (image.ok) image_data_url = `data:${image.headers.get('content-type') || 'image/jpeg'};base64,${Buffer.from(await image.arrayBuffer()).toString('base64')}`;
+        }
+      }
+      const created = await createWishlist(text, { image_data_url, deferAnalysis: true });
+      await send(created.reply);
+      if (updateKey) await put(updateKey, { wishlist_id: created.wl.id }, 86400);
+      waitUntil(analyzeAndReply(created.wl).then(send).catch(err => console.error('Telegram analysis notification failed:', err)));
       return json(res, 200, { ok: true });
     }
 
     // ---------------- mcp passthrough ----------------
     if (parts[0] === 'mcp') {
-      const mcpHandler = (await import('./mcp-handler.js')).default;
-      return mcpHandler(req, res);
+      return json(res, 404, { error: 'MCP is served by api/mcp.js; check the Vercel route configuration.' });
     }
 
     return json(res, 404, { error: `unknown route ${method} /${path}` });

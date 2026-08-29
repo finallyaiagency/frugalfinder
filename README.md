@@ -76,6 +76,27 @@ Verified live run: mid_web (Sonar) scored 9 vs pareto (routed DeepSeek v4 flash)
 - `MCP_TOKEN` (optional) — shared secret for `/api/mcp`
 - `PARETO_MODEL`, `BUDGET_WEB_MODEL`, `MID_WEB_MODEL`, `JUDGE_MODEL` (optional) — LLM comparison tier overrides
 
+## MCP: Codex and Hermes setup
+
+The deployed endpoint is Streamable HTTP (not SSE): `https://YOUR-DOMAIN.vercel.app/api/mcp`.
+Set a long random `MCP_TOKEN` in Vercel for Preview and Production, then configure the same token as the `x-mcp-token` request header in each client. The MCP tools include `submit_wishlist`, `get_wishlist`, `list_wishlists`, `update_wishlist`, `delete_wishlist`, and `trigger_scan`.
+
+Codex configuration (`~/.codex/config.toml`):
+
+```toml
+[mcp_servers.frugalfinder]
+url = "https://YOUR-DOMAIN.vercel.app/api/mcp"
+http_headers = { "x-mcp-token" = "YOUR_MCP_TOKEN" }
+```
+
+Hermes configuration (use the equivalent server entry in its MCP settings):
+
+```json
+{"mcpServers":{"frugalfinder":{"url":"https://YOUR-DOMAIN.vercel.app/api/mcp","headers":{"x-mcp-token":"YOUR_MCP_TOKEN"}}}}
+```
+
+Use `match_preference` as `exact`, `similar`, or `alternatives`; `notes` holds first-class fit, finish, compatibility, and other constraints. Never commit the token—use the client's secret/environment-variable support when available.
+
 ## Sharing paths
 
 ### Add to Wishlist (bookmarklet)
