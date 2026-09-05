@@ -46,7 +46,10 @@ export async function createWishlist(text, options = {}) {
 
   const wl = {
     id: crypto.randomUUID(),
-    ...wishlistFields({ item: (lines[0] || 'Identify the item in this photo').replace(/^wishlist:\s*/i, ''), source_url: (text.match(/https?:\/\/\S+/) || [])[0] || '' }),
+    ...wishlistFields({
+      item: normalizeItem(lines[0] || 'Identify the item in this photo'),
+      source_url: (text.match(/https?:\/\/\S+/) || [])[0] || '',
+    }),
     status: 'active', scans: [],
     created_at: new Date().toISOString(),
     channel: 'telegram',
@@ -90,6 +93,17 @@ export async function analyzeAndReply(wl) {
 }
 
 export { shoppingIntent };
+
+function normalizeItem(text) {
+  let item = String(text || '').trim();
+  // Strip leading action prefixes
+  item = item.replace(/^(add|find|search|track|watch|buy|i want|i need|looking for|get me|help me find|let'?s find|please find|start tracking|put this on)\s+/i, '');
+  // Strip trailing wishlist fluff
+  item = item.replace(/\s*(to\s+(my\s+)?wishlist|to\s+(the\s+)?wishlist|on\s+(my\s+)?wishlist|from\s+(my\s+)?wishlist)$/i, '');
+  // Strip leading "wishlist:" prefix (legacy format)
+  item = item.replace(/^wishlist:\s*/i, '');
+  return item.trim();
+}
 
 export function formatAnalysisReply(wl, a) {
   const out = [`✅ <b>FrugalBot analysis — ${escapeHtml(wl.item)}</b>`];
