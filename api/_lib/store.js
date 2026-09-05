@@ -122,6 +122,45 @@ export async function listWishlists() {
   return out.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 }
 
+export async function renewWishlist(id, days = 45) {
+  const wl = await getWishlist(id);
+  if (!wl) return null;
+  const now = Date.now();
+  const currentExpiry = wl.expires_at ? new Date(wl.expires_at).getTime() : now;
+  // Extend from the later of now or current expiry
+  const extendFrom = Math.max(now, currentExpiry);
+  wl.expires_at = new Date(extendFrom + days * 86400e3).toISOString();
+  wl.renew_count = (wl.renew_count || 0) + 1;
+  wl.last_renewed_at = new Date().toISOString();
+  wl.status = 'active';
+  await saveWishlist(wl);
+  return wl;
+}
+
+// Get wishlists expiring within N days (default 3), including already-expired
+export async function getExpiringWishlists(days = 3) {
+  const all = await listWishlists();
+  const now = Date.now();
+  const cutoff = now + days * 86400e3;
+  return all.filter(w => {
+    if (w.status !== 'active') return false;
+    if (!w.expires_at) return false;
+    const exp = new Date(w.expires_at).getTime();
+    return exp <= cutoff;
+  });
+}
+
+// Get already-expired wishlists
+export async function getExpiredWishlists() {
+  const all = await listWishlists();
+  const now = Date.now();
+  return all.filter(w => {
+    if (w.status !== 'active') return false;
+    if (!w.expires_at) return false;
+    return new Date(w.expires_at).getTime() < now;
+  });
+}
+
 // ---- Scan results --------------------------------------------------------
 
 export async function appendScan(wishlistId, scan) {

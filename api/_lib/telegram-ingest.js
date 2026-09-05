@@ -11,7 +11,7 @@ export async function createWishlist(text, options = {}) {
   if (!lines.length && !options.image_data_url) return 'Send me what you want to find a deal on!';
 
   // Simple /start or help
-  if (/^\/?(start|help)$/i.test(lines[0])) {
+  if (/^\/(start|help)$/i.test(lines[0])) {
     return [
       '<b>FrugalFinder Wishlist Bot</b>',
       '',
@@ -24,7 +24,24 @@ export async function createWishlist(text, options = {}) {
       'flex: any brand, used OK, prefer 10ft+</code>',
       '',
       '(or just describe it in plain English — I\'ll figure out the fields)',
+      '',
+      'Each wishlist expires after 45 days. I\'ll remind you to renew it.',
+      '',
+      '<b>Commands:</b>',
+      '<code>renew &lt;id&gt;</code> — renew a wishlist for 45 more days',
+      '<code>status</code> — see your active wishlists and expiration dates',
     ].join('\n');
+  }
+
+  // Handle: renew <id>
+  const renewMatch = text.match(/^\/?renew\s+([a-f0-9-]{36})/i);
+  if (renewMatch) {
+    return { renewId: renewMatch[1] };
+  }
+
+  // Handle: status command
+  if (/^\/?status$/i.test(text.trim())) {
+    return { statusCommand: true };
   }
 
   const wl = {
@@ -33,6 +50,9 @@ export async function createWishlist(text, options = {}) {
     status: 'active', scans: [],
     created_at: new Date().toISOString(),
     channel: 'telegram',
+    chat_id: options.chatId || null,
+    expires_at: new Date(Date.now() + (options.expires_in_days || 45) * 86400e3).toISOString(),
+    renew_count: 0,
   };
 
   for (const line of lines.slice(1)) {

@@ -80,13 +80,19 @@ async function loadList() {
     const r = await fetch('/api/wishlists');
     const d = await r.json();
     if (!d.wishlists?.length) { $('list').innerHTML = 'No wishlists yet — add one above.'; return; }
-    $('list').innerHTML = d.wishlists.map(w =>
-      `<div class="wish"><a href="/?id=${w.id}"><code>${w.id.slice(0,8)}</code></a> <b>${esc(displayItem(w.item))}</b>
+    $('list').innerHTML = d.wishlists.map(w => {
+      const expDate = w.expires_at ? new Date(w.expires_at) : null;
+      const daysLeft = expDate ? Math.ceil((expDate.getTime() - Date.now()) / 86400e3) : null;
+      const expBadge = daysLeft !== null ? (daysLeft <= 0 ? '<span class="badge" style="background:#f8d7da;color:#721c24">EXPIRED</span>' : daysLeft <= 3 ? `<span class="badge" style="background:#fff3cd;color:#856404">${daysLeft}d left</span>` : `<span class="badge">${daysLeft}d left</span>`) : '';
+      const renewBtn = w.status === 'active' ? `<button class="ghost" onclick="renewWishlist('${w.id}')">Renew</button>` : '';
+      return `<div class="wish"><a href="/?id=${w.id}"><code>${w.id.slice(0,8)}</code></a> <b>${esc(displayItem(w.item))}</b>
        <span class="badge">${w.cadence}</span>${w.channel ? `<span class="badge">${w.channel}</span>`:''}
        <span class="muted">${(w.scans||[]).length} scans · ${esc(w.match_preference||'similar')}</span>
+       ${expBadge}
        ${w.use_case?`<div class="wish-copy">${esc(brief(w.use_case))}</div>`:''}
        ${w.notes?`<div class="wish-note">📝 ${esc(brief(w.notes))}</div>`:''}
-       <div class="actions"><button class="ghost" onclick="editWishlist('${w.id}')">Edit</button><button class="ghost danger" onclick="deleteWishlist('${w.id}')">Delete</button></div></div>`).join('');
+       <div class="actions"><button class="ghost" onclick="editWishlist('${w.id}')">Edit</button>${renewBtn}<button class="ghost danger" onclick="deleteWishlist('${w.id}')">Delete</button></div></div>`;
+    }).join('');
   } catch(e) { $('list').textContent = 'Failed to load list.'; }
 }
 function esc(s){ return String(s??'').replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
@@ -136,7 +142,15 @@ $('go').onclick = async () => {
     } else {
       html += '<div class="card muted">Analysis pending… refresh in a moment.</div>';
     }
-    html += `<div class="card">${wl.use_case?`<p><b>What it’s for:</b> ${esc(brief(wl.use_case))}</p>`:''}<p><b>Match mode:</b> ${esc(wl.match_preference||'similar')}</p>${wl.notes?`<p><b>Notes & constraints:</b> ${esc(brief(wl.notes))}</p>`:''}<div class="actions"><button onclick="scanNow('${id}')">Scan now</button><button class="ghost" onclick="editWishlist('${id}')">Edit</button><button class="ghost danger" onclick="deleteWishlist('${id}')">Delete</button></div></div>`;
+    html += `<div class="card">${wl.use_case?`<p><b>What it’s for:</b> ${esc(brief(wl.use_case))}</p>`:''}<p><b>Match mode:</b> ${esc(wl.match_preference||'similar')}</p>${wl.notes?`<p><b>Notes & constraints:</b> ${esc(brief(wl.notes))}</p>`:''}`;
+    if (wl.expires_at) {
+      const expDate = new Date(wl.expires_at);
+      const daysLeft = Math.ceil((expDate.getTime() - Date.now()) / 86400e3);
+      const expStyle = daysLeft <= 0 ? 'color:#a94040;font-weight:700' : daysLeft <= 3 ? 'color:#856404;font-weight:700' : '';
+      html += `<p style="${expStyle}"><b>Expires:</b> ${expDate.toLocaleDateString()} (${daysLeft <= 0 ? 'EXPIRED' : daysLeft + ' days left'})</p>`;
+      if (wl.renew_count > 0) html += `<p class="muted">Renewed ${wl.renew_count} time${wl.renew_count !== 1 ? 's' : ''}</p>`;
+    }
+    html += `<div class="actions"><button onclick="scanNow('${id}')">Scan now</button><button class="ghost" onclick="editWishlist('${id}')">Edit</button><button class="ghost" onclick="renewWishlist('${id}')">Renew</button><button class="ghost danger" onclick="deleteWishlist('${id}')">Delete</button></div></div>`;
     $('wrap') && 0;
     document.querySelector('.wrap').innerHTML = html;
   } catch(e) { console.error(e); }
@@ -153,7 +167,14 @@ async function editWishlist(id){
   const saved=await fetch('/api/wishlists?id='+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({item,notes,match_preference})});
   if(!saved.ok)return alert('Could not save changes.'); location.reload();
 }
-async function deleteWishlist(id){ if(!confirm('Delete this wishlist permanently?'))return; const r=await fetch('/api/wishlists?id='+id,{method:'DELETE'}); if(!r.ok)return alert('Could not delete wishlist.'); location.href='/'; }
+async function renewWishlist(id) {
+  if (!confirm('Renew this wishlist for another 45 days?')) return;
+  const r = await fetch('/api/renew?id=' + id, { method: 'POST' });
+  const d = await r.json();
+  if (!r.ok || !d.ok) return alert('Could not renew wishlist.');
+  alert('Renewed! New expiry: ' + new Date(d.wishlist.expires_at).toLocaleDateString());
+  loadList();
+}
 </script>
 </body>
 </html>
