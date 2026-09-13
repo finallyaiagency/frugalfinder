@@ -4,11 +4,46 @@ import { saveWishlist } from './store.js';
 import { analyzeWishlist, buildUserPrompt } from './frugal.js';
 import { shoppingIntent, wishlistFields, matchPreference } from './wishlist.js';
 
+// Travel/campground intent that should be handled by Groundbnb, not FrugalFinder
+const TRAVEL_KEYWORDS = [
+  'campsite', 'campground', 'camp site', 'camp ground', 'rv site', 'tent site',
+  'reservation', 'recreation.gov', 'recreation gov', 'national park', 'state park',
+  'kOA', 'koa', 'hipcamp', 'the dyrt', 'tent camping', 'rv camping',
+  'itinerary', 'trip planning', 'road trip', 'vacation planning', 'travel itinerary',
+  'dan nicholas', 'stone mountain', 'lake norman', 'falls lake', 'jordan lake',
+  'camping spot', 'campsite availability', 'campground hookup', 'electric hookup rv',
+  'lakeside camping', 'waterfront campsite', 'lakefront campground',
+];
+
+export function isTravelIntent(text) {
+  const lower = String(text || '').toLowerCase();
+  return TRAVEL_KEYWORDS.some(kw => lower.includes(kw.toLowerCase()));
+}
+
+export function getTravelRedirectMessage() {
+  return [
+    '🏕️ It looks like you\'re asking about camping or travel — that\'s handled by my friend <b>Groundbnb</b>!',
+    '',
+    'Groundbnb specializes in:',
+    '• Campsite & campground availability',
+    '• RV site upgrades with hookups',
+    '• Lakefront and waterfront sites',
+    '• Trip itinerary improvements',
+    '',
+    'Message the <b>Groundbnb</b> bot to get help with your trip!',
+  ].join('\n');
+}
+
 // Format: first line = item, then key: value lines for use/budget/flex/cadence.
 // Or just freeform text — FrugalBot will infer fields.
 export async function createWishlist(text, options = {}) {
   const lines = text.split('\n').map(s => s.trim()).filter(Boolean);
   if (!lines.length && !options.image_data_url) return 'Send me what you want to find a deal on!';
+
+  // Check for travel/camping intent — redirect to Groundbnb
+  if (isTravelIntent(text)) {
+    return getTravelRedirectMessage();
+  }
 
   // Simple /start or help
   if (/^\/(start|help)$/i.test(lines[0])) {

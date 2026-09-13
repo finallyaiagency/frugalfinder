@@ -3,7 +3,6 @@
 import { saveWishlist, getWishlist, listWishlists, appendScan, deleteWishlist, get, put, renewWishlist, getExpiringWishlists, getExpiredWishlists } from './_lib/store.js';
 import { analyzeWishlist, buildUserPrompt } from './_lib/frugal.js';
 import { wishlistFields, matchPreference } from './_lib/wishlist.js';
-import { getCampgroundMeta, getCampgroundSites, scanReservation, listReservations } from './_lib/reservations.js';
 import { compareModels, getModelPerf } from './_lib/llm-compare.js';
 import { waitUntil } from '@vercel/functions';
 
@@ -208,76 +207,15 @@ export default async function handler(req, res) {
         if (result.ok) { wl.analysis = result.analysis; await saveWishlist(wl); }
         results.push({ id: wl.id, item: wl.item, ok: scan.ok });
       }
-      // Also scan due reservations while we're here (single cron covers both)
-      for (const r of await listReservations()) {
-        if (r.status !== 'active') continue;
-        const last = r.scans?.[0]?.at ? new Date(r.scans[0].at).getTime() : 0;
-        if (now - last < (windowsMs[r.cadence] || windowsMs.daily)) continue;
-        const scan = await scanReservation(r.id);
-        results.push({ id: r.id, reservation: true, ok: !!scan.best });
-      }
       return json(res, 200, { scanned: results.length, expiring: expiring.length, expired: expired.length, results });
     }
 
-    // ---------------- reservations ----------------
+    // ---------------- reservations (removed — now handled by Groundbnb agent) ----------------
     if (parts[0] === 'reservations') {
-      // /api/reservations/scan?id= — POST trigger
-      if (parts[1] === 'scan') {
-        const id = url.searchParams.get('id');
-        if (!id) return json(res, 400, { error: 'id required' });
-        const scan = await scanReservation(id);
-        return json(res, scan.ok ? 200 : 502, scan);
-      }
-
-      const id = url.searchParams.get('id');
-      if (method === 'POST') {
-        const body = await readBody(req);
-        const wl = {
-          id: crypto.randomUUID(),
-          type: 'reservation',
-          campground_ids: Array.isArray(body.campground_ids)
-            ? body.campground_ids.map((x) => String(x).trim()).filter(Boolean).slice(0, 20)
-            : body.campground_ids ? [String(body.campground_ids).trim()] : [],
-          site_preference: String(body.site_preference || 'any').slice(0, 100),
-          min_features: Array.isArray(body.min_features) ? body.min_features.map(String).slice(0, 20) : [],
-          max_price: String(body.max_price || '').slice(0, 100),
-          date_window: String(body.date_window || 'next_30_days').slice(0, 200),
-          cadence: ['hourly', 'due'].includes(body.cadence) ? body.cadence : (['hourly', 'daily', 'weekly'].includes(body.cadence) ? body.cadence : 'daily'),
-          source_url: '', notes: String(body.notes || '').slice(0, 2000),
-          status: 'active', scans: [],
-          created_at: new Date().toISOString(),
-          channel: body.channel || 'web',
-        };
-        if (!wl.campground_ids.length && !body.item) return json(res, 400, { error: 'campground_ids or item required' });
-        if (!wl.campground_ids.length) wl.item = String(body.item).slice(0, 500);
-        await saveWishlist(wl);
-        waitUntil(scanReservation(wl.id).catch(() => {}));
-        return json(res, 201, { ok: true, reservation_id: wl.id, _links: { scan_now: `/api/reservations/scan?id=${wl.id}` } });
-      }
-      if (method === 'GET' && id) {
-        const wl = await getWishlist(id);
-        if (!wl || wl.type !== 'reservation') return json(res, 404, { error: 'not found' });
-        return json(res, 200, wl);
-      }
-      if (method === 'GET') {
-        const items = await listReservations();
-        return json(res, 200, { reservations: items.map((w) => ({ id: w.id, campground_ids: w.campground_ids, site_preference: w.site_preference, date_window: w.date_window, cadence: w.cadence, last_result: w.last_result, scans: (w.scans || []).length })) });
-      }
-      if (method === 'PATCH' && id) {
-        const wl = await getWishlist(id);
-        if (!wl || wl.type !== 'reservation') return json(res, 404, { error: 'not found' });
-        const body = await readBody(req);
-        for (const k of ['status', 'cadence', 'site_preference', 'max_price', 'date_window']) {
-          if (body[k] !== undefined) wl[k] = String(body[k]).slice(0, 2000);
-        }
-        if (Array.isArray(body.min_features)) wl.min_features = body.min_features.map(String).slice(0, 20);
-        if (Array.isArray(body.campground_ids)) wl.campground_ids = body.campground_ids.map(String).slice(0, 20);
-        await saveWishlist(wl);
-        return json(res, 200, { ok: true, reservation: wl });
-      }
+      return json(res, 410, { error: 'Reservations are now handled by the Groundbnb agent. Use Groundbnb for campground and travel itinerary monitoring.' });
     }
 
-    // ---------------- compare ----------------
+    // ---------------- reservation scan (removed — now handled by Groundbnb agent) ----------------
     if (parts[0] === 'compare') {
       if (method === 'GET') {
         return json(res, 200, await getModelPerf());
