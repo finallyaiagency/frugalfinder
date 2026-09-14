@@ -175,6 +175,14 @@ async function renewWishlist(id) {
   alert('Renewed! New expiry: ' + new Date(d.wishlist.expires_at).toLocaleDateString());
   loadList();
 }
+async function deleteWishlist(id) {
+  if (!confirm('Delete this wishlist? This cannot be undone.')) return;
+  const r = await fetch('/api/wishlists?id=' + id, { method: 'DELETE' });
+  const d = await r.json();
+  if (!r.ok || !d.ok) return alert('Could not delete wishlist.');
+  alert('Deleted.');
+  loadList();
+}
 </script>
 </body>
 </html>
