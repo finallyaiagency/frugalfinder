@@ -11,5 +11,5 @@
     { "src": "/", "dest": "/public/index.html" },
     { "src": "/(.*)", "dest": "/public/$1" }
   ],
-  "crons": [{ "path": "/api/scan-all", "schedule": "0 */6 * * *" }]
+  "crons": [{ "path": "/api/scan-all", "schedule": "0 12 * * *" }]
 }
