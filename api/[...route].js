@@ -157,7 +157,7 @@ export default async function handler(req, res) {
     }
 
     // ---------------- scan-all (cron) ----------------
-    if (parts[0] === 'scan-all' && method === 'POST') {
+    if (parts[0] === 'scan-all' && (method === 'GET' || method === 'POST')) {
       const secret = process.env.CRON_SECRET;
       if (!secret || req.headers.authorization !== `Bearer ${secret}`) {
         return json(res, 401, { error: 'bad cron secret' });
