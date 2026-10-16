@@ -112,15 +112,26 @@ export async function deleteWishlist(id) {
   await indexSave(ids.filter((savedId) => savedId !== id));
 }
 
+export async function wishlistStorageHealth() {
+  const ids = await indexAll();
+  if (!Array.isArray(ids)) throw new Error('Wishlist index is not an array');
+  const missing = [];
+  for (const id of ids) {
+    if (!(await getWishlist(id))) missing.push(id);
+  }
+  return { backend: storageMode(), indexed: ids.length, readable: ids.length - missing.length, missing, checked_at: new Date().toISOString() };
+}
+
 export async function listWishlists() {
   const ids = await indexAll();
   const out = [];
-  let dirty = false;
   for (const id of ids) {
     const wl = await getWishlist(id);
-    if (wl) out.push(wl); else dirty = true;
+    // A missing document must never silently remove an indexed wishlist.
+    // Repair orphaned IDs explicitly after investigating the data repository.
+    if (!wl) throw new Error(`Wishlist index references missing record: ${id}`);
+    out.push(wl);
   }
-  if (dirty) await indexSave(out.map((w) => w.id));
   return out.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 }
 

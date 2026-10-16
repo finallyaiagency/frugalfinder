@@ -1,6 +1,6 @@
 // Single catch-all serverless function — routes /api/* internally.
 // Keeps us under Vercel Hobby's 12-function limit.
-import { saveWishlist, getWishlist, listWishlists, appendScan, deleteWishlist, get, put, renewWishlist, getExpiringWishlists, getExpiredWishlists } from './_lib/store.js';
+import { saveWishlist, getWishlist, listWishlists, appendScan, deleteWishlist, get, put, renewWishlist, getExpiringWishlists, getExpiredWishlists, wishlistStorageHealth } from './_lib/store.js';
 import { analyzeWishlist, buildUserPrompt } from './_lib/frugal.js';
 import { wishlistFields, matchPreference } from './_lib/wishlist.js';
 import { compareModels, getModelPerf } from './_lib/llm-compare.js';
@@ -39,6 +39,15 @@ export default async function handler(req, res) {
     // ---------------- health ----------------
     if (path === '' || path === 'health') {
       return json(res, 200, { ok: true, service: 'frugalfinder', endpoints: ['/api/wishlists', '/api/scan', '/api/scan-all', '/api/reservations', '/api/reservations/scan', '/api/compare', '/api/mcp', '/api/telegram'] });
+    }
+
+    // ---------------- authenticated persistent-storage health ----------------
+    if (path === 'health/storage') {
+      const secret = process.env.CRON_SECRET;
+      if (!secret || req.headers.authorization !== `Bearer ${secret}`) return json(res, 401, { error: 'unauthorized' });
+      if (method !== 'GET') return json(res, 405, { error: 'method not allowed' });
+      const health = await wishlistStorageHealth();
+      return json(res, health.missing.length ? 503 : 200, { ok: health.missing.length === 0, ...health });
     }
 
     // ---------------- wishlists ----------------
@@ -148,9 +157,9 @@ export default async function handler(req, res) {
     }
 
     // ---------------- scan-all (cron) ----------------
-    if (parts[0] === 'scan-all' && method === 'POST') {
+    if (parts[0] === 'scan-all' && (method === 'GET' || method === 'POST')) {
       const secret = process.env.CRON_SECRET;
-      if (secret && req.headers.authorization !== `Bearer ${secret}`) {
+      if (!secret || req.headers.authorization !== `Bearer ${secret}`) {
         return json(res, 401, { error: 'bad cron secret' });
       }
 
