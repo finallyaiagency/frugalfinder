@@ -26,11 +26,12 @@ function getKV() {
 
 export function storageMode() {
   if (getKV()) return 'vercel-kv';
-  if ((process.env.GH_TOKEN || process.env.GITHUB_TOKEN)) return 'github';
+  if ((process.env.GH_TOKEN || process.env.GITHUB_TOKEN) && process.env.GH_DATA_REPO) return 'github';
   return 'memory';
 }
 
 export async function put(key, value, ttlSeconds) {
+  if (process.env.VERCEL_ENV === 'production' && storageMode() === 'memory') throw new Error('Persistent storage is not configured');
   const k = `ff:${key}`;
   const str = JSON.stringify(value);
   const store = getKV();
@@ -50,6 +51,7 @@ export async function put(key, value, ttlSeconds) {
 }
 
 export async function get(key) {
+  if (process.env.VERCEL_ENV === 'production' && storageMode() === 'memory') throw new Error('Persistent storage is not configured');
   const k = `ff:${key}`;
   // memory first (fresh mirror)
   let raw = null;
@@ -61,7 +63,7 @@ export async function get(key) {
     if (store) {
       raw = await store.kv.get(k);
     } else if (storageMode() === 'github') {
-      raw = await durableGet(k).catch(() => null);
+      raw = await durableGet(k);
       if (raw != null) mem().set(k, { v: raw }); // cache in warm instance
     }
   }

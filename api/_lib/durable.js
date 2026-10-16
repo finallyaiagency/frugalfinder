@@ -63,7 +63,7 @@ export async function durableGet(key) {
   try {
     const r = await ghGet(p);
     return r.found ? r.content : null;
-  } catch { return null; }
+  } catch (error) { throw new Error(`GitHub storage read failed for ${p}: ${error.message}`); }
 }
 
 export async function durableSet(key, valueStr) {

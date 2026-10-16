@@ -79,6 +79,7 @@ async function loadList() {
   try {
     const r = await fetch('/api/wishlists');
     const d = await r.json();
+    if (!r.ok || !Array.isArray(d.wishlists)) throw new Error(d.error || `Wishlist API returned HTTP ${r.status}`);
     if (!d.wishlists?.length) { $('list').innerHTML = 'No wishlists yet — add one above.'; return; }
     $('list').innerHTML = d.wishlists.map(w => {
       const expDate = w.expires_at ? new Date(w.expires_at) : null;
@@ -93,7 +94,7 @@ async function loadList() {
        ${w.notes?`<div class="wish-note">📝 ${esc(brief(w.notes))}</div>`:''}
        <div class="actions"><button class="ghost" onclick="editWishlist('${w.id}')">Edit</button>${renewBtn}<button class="ghost danger" onclick="deleteWishlist('${w.id}')">Delete</button></div></div>`;
     }).join('');
-  } catch(e) { $('list').textContent = 'Failed to load list.'; }
+  } catch(e) { $('list').textContent = 'Could not load wishlists: ' + (e.message || 'server error') + '. Your saved items have not been deleted.'; }
 }
 function esc(s){ return String(s??'').replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 function displayItem(value){ return /^https?:\/\//i.test(String(value||'')) ? 'Shared product listing' : (value || 'Wishlist item'); }
