@@ -70,9 +70,9 @@ Verified live run: mid_web (Sonar) scored 9 vs pareto (routed DeepSeek v4 flash)
 - `OPENROUTER_API_KEY` (required) — LLM provider
 - `FRUGAL_MODEL` (optional, default `stealth/ox-alpha`) — any OpenRouter model slug
 - `KV_REST_API_URL`, `KV_REST_API_TOKEN` (required for production persistence) — from a Vercel KV (Upstash) database attached in Vercel → Storage
-- `WISHLIST_TOKEN` (optional) — shared secret for `/api/wishlists`
-- `CRON_SECRET` (optional but recommended) — protects `/api/scan-all`
-- `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET` (optional) — Telegram ingest
+- `WISHLIST_TOKEN` (**required for owner access**, at least 32 unpredictable characters) — server-side login and Bearer authentication for private APIs
+- `CRON_SECRET` (**required** for `/api/scan-all` and `/api/health/storage`) — configure before deployment
+- `TELEGRAM_BOT_TOKEN` (optional), `TELEGRAM_WEBHOOK_SECRET` (**required if Telegram webhook is used**) — webhook now rejects requests if the secret is missing
 - `MCP_TOKEN` (optional) — shared secret for `/api/mcp`
 - `PARETO_MODEL`, `BUDGET_WEB_MODEL`, `MID_WEB_MODEL`, `JUDGE_MODEL` (optional) — LLM comparison tier overrides
 
@@ -102,9 +102,9 @@ Use `match_preference` as `exact`, `similar`, or `alternatives`; `notes` holds f
 ### Add to Wishlist (bookmarklet)
 Create a browser bookmark named **Add to Wishlist** with this URL:
 ```javascript
-javascript:(function(){var u=location.href;var t=document.title;prompt('Send to FrugalFinder? Add budget/use hints:',t+'\n'+u)&&fetch('https://frugalfinder.vercel.app/api/wishlists',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({item:t,source_url:u,budget:'see notes',use_case:'shared from '+u,cadence:'daily'})}).then(r=>r.json()).then(d=>alert('Added! id='+d.id))})()
+javascript:(function(){var u=location.href,t=document.title;window.open('https://frugalfinder.vercel.app/?share='+encodeURIComponent(u)+'&item='+encodeURIComponent(t),'_blank')})()
 ```
-Click it on any product page to submit that listing as a wishlist entry.
+Click it on any product page to open FrugalFinder with the listing prefilled. Sign in on the FrugalFinder domain, then submit the wishlist; cross-origin POST requests are no longer permitted.
 
 ### Email (MVP note)
 Not yet wired — MVP uses web UI + Telegram + bookmarklet. Email ingest is a natural v2 addition via an inbound-email webhook (e.g. Resend/Postmark → `/api/wishlists`).
@@ -119,11 +119,19 @@ Not yet wired — MVP uses web UI + Telegram + bookmarklet. Email ingest is a na
 
 The unit economics only work because the analyzer batches all due wishlists into a single cron pass (`/api/scan-all`), amortizing cold-start overhead.
 
-## Auth roadmap (post-MVP)
+## Owner-only access (security patch)
 
-1. MVP now: no auth, single-user, guarded by optional shared secrets.
-2. v1.1: magic-link email login (Auth.js or Clerk free tier) → per-user wishlists keyed by user ID.
-3. v2: Stripe checkout for Power/Pro tiers; usage metering = count of scans per billing period.
+**Deployment order matters.** In Vercel, set `WISHLIST_TOKEN` to a freshly generated random secret with at least 32 characters in **Production and Preview** before deploying this patch. Preserve the key in your password manager; the application cannot recover it. Never put the key in GitHub or frontend JavaScript. Redeploy after changing environment variables.
+
+- Open the FrugalFinder home page, enter the key once, and receive a signed HttpOnly, Secure, SameSite=Lax session cookie valid for up to seven days; use **Sign out** to clear it.
+- Sensitive endpoints (`/api/wishlists`, `/api/renew`, `/api/scan`, `/api/compare`) reject unauthenticated requests. For non-browser scripts use `Authorization: Bearer YOUR_WISHLIST_TOKEN` over HTTPS.
+- `/api/health` remains public; `/api/scan-all` remains guarded by `CRON_SECRET`; `/api/telegram` now requires `TELEGRAM_WEBHOOK_SECRET`. Configure these before enabling their integrations.
+- Bookmarklets now open FrugalFinder in a new tab, which avoids exposing a secret to other websites.
+- This is **single-owner access**. Do not reuse this key for other services. Implement per-user login/authorization if multi-user access is needed later.
+
+**Caution:** The current Vercel route configuration references `api/mcp.js`, which is absent from this repository revision. The MCP endpoint needs a separate follow-up review. No claim is made here that MCP is functional or secured by this patch.
+
+Future: per-user magic-link login (Auth.js or Clerk), then separate wishlists by user ID; Stripe and usage metering if launched as a paid service.
 
 ## Local dev
 
