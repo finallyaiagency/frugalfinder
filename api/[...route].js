@@ -5,6 +5,7 @@ import { analyzeWishlist, buildUserPrompt } from './_lib/frugal.js';
 import { wishlistFields, matchPreference } from './_lib/wishlist.js';
 import { compareModels, getModelPerf } from './_lib/llm-compare.js';
 import { waitUntil } from '@vercel/functions';
+import { isOwner, ownerLogin, ownerLogout } from './_lib/owner-auth.js';
 
 export const maxDuration = 300;
 
@@ -23,11 +24,8 @@ export default async function handler(req, res) {
   const parts = path.split('/').filter(Boolean);
   const method = req.method;
 
-  // ---- CORS: bookmarklets POST here from arbitrary pages ----
-  if (req.headers.origin) {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Vary', 'Origin');
-  }
+  // Deliberately no wildcard CORS: browser operations require same-origin owner sessions.
+  // Server-to-server clients can authenticate with Authorization: Bearer WISHLIST_TOKEN.
   if (method === 'OPTIONS') {
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Telegram-Bot-Api-Secret-Token');
@@ -36,6 +34,29 @@ export default async function handler(req, res) {
   }
 
   try {
+    // ---------------- single-owner login (HttpOnly session cookie; no key in localStorage) ----------------
+    if (path === 'auth/login' && method === 'POST') {
+      const body = await readBody(req);
+      return ownerLogin(req, res, body.token);
+    }
+    if (path === 'auth/logout' && method === 'POST') return ownerLogout(res);
+    if (path === 'auth/session' && method === 'GET') {
+      if (!isOwner(req)) return json(res, 401, { error: 'sign in required' });
+      return json(res, 200, { ok: true });
+    }
+
+    // Keep the public health probe, Vercel cron, and Telegram webhook reachable.
+    // Everything else (including wishlists, renew, scan, compare) requires owner auth.
+    const cronSecret = process.env.CRON_SECRET;
+    const cronHealth = path === 'health/storage' && cronSecret &&
+      req.headers.authorization === `Bearer ${cronSecret}`;
+    const publicServiceRoute = path === '' || path === 'health' ||
+      path === 'scan-all' || path === 'telegram' || cronHealth;
+    if (!publicServiceRoute && !isOwner(req)) {
+      res.setHeader('Cache-Control', 'no-store');
+      return json(res, 401, { error: 'owner authentication required' });
+    }
+
     // ---------------- health ----------------
     if (path === '' || path === 'health') {
       return json(res, 200, { ok: true, service: 'frugalfinder', endpoints: ['/api/wishlists', '/api/scan', '/api/scan-all', '/api/reservations', '/api/reservations/scan', '/api/compare', '/api/mcp', '/api/telegram'] });
@@ -247,7 +268,7 @@ export default async function handler(req, res) {
     // ---------------- telegram ----------------
     if (parts[0] === 'telegram' && method === 'POST') {
       const tSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
-      if (tSecret && req.headers['x-telegram-bot-api-secret-token'] !== tSecret) {
+      if (!tSecret || req.headers['x-telegram-bot-api-secret-token'] !== tSecret) {
         return json(res, 401, { error: 'bad webhook secret' });
       }
       const update = await readBody(req);
